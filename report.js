@@ -2,10 +2,10 @@
 // Ежедневный отчёт — запускается через GitHub Actions
 // ══════════════════════════════════════════════════════
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const REPORT_EMAIL = process.env.REPORT_EMAIL;
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
+const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || '').trim();
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
+const REPORT_EMAIL = (process.env.REPORT_EMAIL || '').trim();
 
 async function getUsers() {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/users?select=*&order=created_at.desc`, {
