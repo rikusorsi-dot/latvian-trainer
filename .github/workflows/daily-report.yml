@@ -1,6 +1,6 @@
- name: Ежедневный отчёт
-
-  on:
+name: Daily Report                                                                                                                                                                                      
+                                                            
+  "on":
     schedule:
       - cron: '0 18 * * *'
     workflow_dispatch:
@@ -13,9 +13,9 @@
         - uses: actions/setup-node@v4
           with:
             node-version: '20'
-        - name: Установить зависимости
+        - name: Install deps
           run: npm install
-        - name: Отправить отчёт
+        - name: Send report
           run: node report.js
           env:
             SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
