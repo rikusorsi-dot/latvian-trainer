@@ -14,7 +14,11 @@ async function getUsers() {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
         }
     });
-    return res.json();
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+        throw new Error(`Ошибка базы данных: ${JSON.stringify(data)}`);
+    }
+    return data;
 }
 
 function typeLabel(type) {
