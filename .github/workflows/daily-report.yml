@@ -1,0 +1,22 @@
+name: Ежедневный отчёт
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 20:00 по Риге (UTC+2)
+  workflow_dispatch:         # Можно запустить вручную
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Отправить отчёт
+        run: node report.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
