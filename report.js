@@ -2,22 +2,18 @@
 // Ежедневный отчёт — запускается через GitHub Actions
 // ══════════════════════════════════════════════════════
 
+const { createClient } = require('@supabase/supabase-js');
+
 const SUPABASE_URL = (process.env.SUPABASE_URL || '').trim();
 const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || '').trim();
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const REPORT_EMAIL = (process.env.REPORT_EMAIL || '').trim();
 
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 async function getUsers() {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/users?select=*&order=created_at.desc`, {
-        headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        }
-    });
-    const data = await res.json();
-    if (!Array.isArray(data)) {
-        throw new Error(`Ошибка базы данных: ${JSON.stringify(data)}`);
-    }
+    const { data, error } = await db.from('users').select('*').order('created_at', { ascending: false });
+    if (error) throw new Error(`Ошибка базы данных: ${JSON.stringify(error)}`);
     return data;
 }
 
