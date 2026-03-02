@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Администратор — Латышский тренажёр</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            padding: 20px 16px;
+        }
+
+        /* ── ЭКРАН ВХОДА ── */
+        #login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: -20px -16px;
+            background: linear-gradient(135deg, #1a3a6e 0%, #9b2335 100%);
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 18px;
+            padding: 36px 32px;
+            width: 100%;
+            max-width: 360px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        .login-box h2 { font-size: 22px; color: #2c3e50; margin-bottom: 6px; }
+        .login-box p  { font-size: 14px; color: #888; margin-bottom: 22px; }
+
+        .login-box input {
+            width: 100%;
+            padding: 13px 16px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+            margin-bottom: 14px;
+        }
+        .login-box input:focus { border-color: #3498db; }
+
+        .login-box button {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            background: #1a3a6e;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .login-error {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* ── ГЛАВНЫЙ ЭКРАН ── */
+        #admin-screen { display: none; max-width: 900px; margin: 0 auto; }
+
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .admin-header h1 { font-size: 22px; color: #2c3e50; }
+
+        #btn-admin-logout {
+            font-size: 14px;
+            color: #888;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 6px 14px;
+            cursor: pointer;
+        }
+
+        /* ── СЧЁТЧИКИ ── */
+        .counters {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        @media (min-width: 500px) {
+            .counters { grid-template-columns: repeat(4, 1fr); }
+        }
+
+        .counter-card {
+            background: white;
+            border-radius: 14px;
+            padding: 18px 14px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+
+        .counter-num  { font-size: 36px; font-weight: bold; color: #2c3e50; }
+        .counter-label { font-size: 13px; color: #888; margin-top: 4px; }
+
+        /* ── ПАРОЛИ ── */
+        .passwords-section {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+
+        .passwords-section h2 {
+            font-size: 17px;
+            color: #2c3e50;
+            margin-bottom: 14px;
+        }
+
+        .pw-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .pw-row label {
+            font-size: 14px;
+            color: #555;
+            min-width: 140px;
+            font-weight: bold;
+        }
+
+        .pw-row input {
+            flex: 1;
+            min-width: 160px;
+            padding: 10px 14px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+        }
+        .pw-row input:focus { border-color: #3498db; }
+
+        .btn-save-pw {
+            padding: 10px 18px;
+            font-size: 15px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .pw-result {
+            font-size: 14px;
+            padding: 4px 0;
+            display: none;
+        }
+
+        /* ── ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ ── */
+        .users-section {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+
+        .users-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .users-header h2 { font-size: 17px; color: #2c3e50; }
+
+        .btn-refresh {
+            font-size: 14px;
+            color: #3498db;
+            background: none;
+            border: 1px solid #3498db;
+            border-radius: 8px;
+            padding: 5px 12px;
+            cursor: pointer;
+        }
+
+        .legend {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 14px;
+        }
+
+        .table-wrap { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            min-width: 500px;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            text-align: left;
+            color: #666;
+            font-weight: bold;
+            border-bottom: 2px solid #eee;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+
+        tr:hover td { background: #fafafa; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-subscriber { background: #eaf4fb; color: #2980b9; }
+        .badge-sponsor    { background: #fef9e7; color: #d68910; }
+
+        .status-dot { font-size: 16px; }
+
+        /* ── УРОКИ ── */
+        .lessons-section {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        }
+
+        .lessons-section h2 { font-size: 17px; color: #2c3e50; margin-bottom: 14px; }
+
+        .level-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .level-tab {
+            padding: 8px 18px;
+            font-size: 14px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .level-tab.active {
+            background: #1a3a6e;
+            border-color: #1a3a6e;
+            color: white;
+        }
+
+        .add-phrase-form {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .add-phrase-form input {
+            flex: 1;
+            min-width: 140px;
+            padding: 10px 14px;
+            font-size: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+        }
+        .add-phrase-form input:focus { border-color: #27ae60; }
+
+        .btn-add-phrase {
+            padding: 10px 18px;
+            font-size: 15px;
+            background: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .phrase-count {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+
+        .btn-delete-phrase {
+            padding: 4px 10px;
+            font-size: 13px;
+            background: none;
+            border: 1px solid #e74c3c;
+            color: #e74c3c;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .btn-delete-phrase:hover { background: #fdecea; }
+
+        .no-users {
+            text-align: center;
+            padding: 30px;
+            color: #aaa;
+            font-size: 15px;
+        }
+
+        .loading-msg {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── ЭКРАН ВХОДА ── -->
+<div id="login-screen">
+    <div class="login-box">
+        <h2>🔐 Администратор</h2>
+        <p>Введите пароль администратора</p>
+        <input type="password" id="admin-pw-input" placeholder="Пароль"
+               onkeydown="if(event.key==='Enter') checkAdmin()">
+        <button onclick="checkAdmin()">Войти</button>
+        <div class="login-error" id="login-error">Неверный пароль</div>
+    </div>
+</div>
+
+<!-- ── ГЛАВНЫЙ ЭКРАН ── -->
+<div id="admin-screen">
+    <div class="admin-header">
+        <h1>🇱🇻 Панель администратора</h1>
+        <button id="btn-admin-logout" onclick="adminLogout()">Выйти</button>
+    </div>
+
+    <!-- Счётчики -->
+    <div class="counters">
+        <div class="counter-card">
+            <div class="counter-num" id="cnt-total">—</div>
+            <div class="counter-label">Всего учеников</div>
+        </div>
+        <div class="counter-card">
+            <div class="counter-num" id="cnt-today">—</div>
+            <div class="counter-label">Занимались сегодня</div>
+        </div>
+        <div class="counter-card">
+            <div class="counter-num" id="cnt-subscribers">—</div>
+            <div class="counter-label">Подписчиков</div>
+        </div>
+        <div class="counter-card">
+            <div class="counter-num" id="cnt-sponsors">—</div>
+            <div class="counter-label">Спонсоров</div>
+        </div>
+    </div>
+
+    <!-- Добавить ученика -->
+    <div class="passwords-section">
+        <h2>➕ Добавить ученика</h2>
+
+        <div class="pw-row">
+            <label>Имя</label>
+            <input type="text" id="new-user-name" placeholder="Например: Анна">
+        </div>
+        <div class="pw-row">
+            <label>Email</label>
+            <input type="email" id="new-user-email" placeholder="anna@mail.com (необязательно)">
+        </div>
+        <div class="pw-row">
+            <label>Тариф</label>
+            <select id="new-user-type" style="flex:1;padding:10px 14px;font-size:15px;border:2px solid #ddd;border-radius:10px;outline:none">
+                <option value="subscriber">📅 Подписчик (уровень 1)</option>
+                <option value="sponsor1">⭐ Спонсор тариф 1 (уровень 1)</option>
+                <option value="sponsor2">⭐⭐ Спонсор тариф 2 (уровни 1-2)</option>
+                <option value="sponsor3">⭐⭐⭐ Спонсор тариф 3 (все уровни)</option>
+            </select>
+        </div>
+        <div class="pw-row">
+            <label>Доступ на</label>
+            <select id="new-user-duration" style="flex:1;padding:10px 14px;font-size:15px;border:2px solid #ddd;border-radius:10px;outline:none">
+                <option value="7">1 неделю</option>
+                <option value="14">2 недели</option>
+                <option value="30" selected>1 месяц</option>
+                <option value="90">3 месяца</option>
+                <option value="365">1 год</option>
+            </select>
+        </div>
+        <div style="margin-top:14px">
+            <button class="btn-save-pw" onclick="addUser()" style="font-size:17px;padding:12px 24px">
+                ✅ Добавить и выдать код
+            </button>
+        </div>
+        <div id="add-user-result" style="margin-top:14px;display:none;background:#f0fdf4;border:1px solid #27ae60;border-radius:12px;padding:16px;font-size:15px;line-height:1.8"></div>
+    </div>
+
+    <!-- Таблица пользователей -->
+    <div class="users-section">
+        <div class="users-header">
+            <h2>👥 Ученики</h2>
+            <button class="btn-refresh" onclick="loadUsers()">↻ Обновить</button>
+        </div>
+
+        <div class="legend">
+            🟢 Активен недавно &nbsp;|&nbsp;
+            🟡 Давно не заходил &nbsp;|&nbsp;
+            🔴 Пропал &nbsp;|&nbsp;
+            ⚠️ Доступ истекает скоро &nbsp;|&nbsp;
+            🔒 Доступ закончился
+        </div>
+
+        <div class="table-wrap">
+            <table id="users-table" style="min-width:650px">
+                <thead>
+                    <tr>
+                        <th>Статус</th>
+                        <th>Имя</th>
+                        <th>Тариф</th>
+                        <th>Код</th>
+                        <th>Доступ до</th>
+                        <th>Занятий</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <tr><td colspan="7" class="loading-msg">Загрузка...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Управление уроками -->
+    <div class="lessons-section">
+        <h2>📚 Фразы для тренажёра</h2>
+
+        <div class="level-tabs">
+            <button class="level-tab active" onclick="switchLessonLevel(1, this)">🟢 Уровень 1</button>
+            <button class="level-tab" onclick="switchLessonLevel(2, this)">🟡 Уровень 2</button>
+            <button class="level-tab" onclick="switchLessonLevel(3, this)">🔴 Уровень 3</button>
+        </div>
+
+        <!-- Одна фраза -->
+        <div class="add-phrase-form">
+            <input type="text" id="new-ru" placeholder="По-русски: Я говорю...">
+            <input type="text" id="new-lv" placeholder="По-латышски: Es runāju...">
+            <button class="btn-add-phrase" onclick="addLesson()">+ Добавить</button>
+        </div>
+
+        <!-- Массовая вставка -->
+        <details style="margin-bottom:14px">
+            <summary style="cursor:pointer;font-size:14px;color:#3498db;font-weight:bold;margin-bottom:8px">
+                📋 Вставить сразу много фраз
+            </summary>
+            <div style="margin-top:10px">
+                <p style="font-size:13px;color:#777;margin-bottom:8px">
+                    Каждая строчка = одна фраза. Разделитель между русским и латышским — вертикальная черта <strong>|</strong>
+                </p>
+                <textarea id="bulk-input" rows="8"
+                    placeholder="Я говорю | Es runāju&#10;Я понимаю | Es saprotu&#10;Я хочу | Es gribu&#10;..."
+                    style="width:100%;padding:12px;font-size:14px;border:2px solid #ddd;border-radius:10px;outline:none;resize:vertical;font-family:Arial"></textarea>
+                <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
+                    <button class="btn-add-phrase" onclick="bulkAddLessons()">⬆ Загрузить все фразы</button>
+                    <span id="bulk-result" style="font-size:14px"></span>
+                </div>
+            </div>
+        </details>
+
+        <div class="phrase-count" id="phrase-count">Загрузка...</div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:45%">По-русски</th>
+                        <th style="width:45%">По-латышски</th>
+                        <th style="width:10%"></th>
+                    </tr>
+                </thead>
+                <tbody id="lessons-tbody">
+                    <tr><td colspan="3" class="loading-msg">Загрузка...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── ВХОД В АДМИНКУ ──────────────────────────────────
+function checkAdmin() {
+    const input = document.getElementById('admin-pw-input').value.trim();
+    if (input === ADMIN_PASSWORD) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('admin-screen').style.display = 'block';
+        loadData();
+    } else {
+        document.getElementById('login-error').style.display = 'block';
+    }
+}
+
+function adminLogout() {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('admin-screen').style.display = 'none';
+    document.getElementById('admin-pw-input').value = '';
+}
+
+// ── ЗАГРУЗКА ДАННЫХ ─────────────────────────────────
+async function loadData() {
+    await Promise.all([loadCounters(), loadUsers(), loadLessonsAdmin(1)]);
+}
+
+// ── УПРАВЛЕНИЕ УРОКАМИ ───────────────────────────────
+let currentLessonLevel = 1;
+
+function switchLessonLevel(level, btn) {
+    currentLessonLevel = level;
+    document.querySelectorAll('.level-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadLessonsAdmin(level);
+}
+
+async function loadLessonsAdmin(level) {
+    const tbody = document.getElementById('lessons-tbody');
+    const countEl = document.getElementById('phrase-count');
+    tbody.innerHTML = '<tr><td colspan="3" class="loading-msg">Загрузка...</td></tr>';
+    countEl.textContent = '...';
+
+    const { data, error } = await db
+        .from('lessons')
+        .select('id, ru, lv')
+        .eq('level', level)
+        .order('id');
+
+    if (error || !data) {
+        tbody.innerHTML = '<tr><td colspan="3" class="no-users">Ошибка загрузки</td></tr>';
+        return;
+    }
+
+    countEl.textContent = 'Фраз на уровне ' + level + ': ' + data.length;
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="no-users">Фраз пока нет — добавьте первую!</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    for (const row of data) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${escHtml(row.ru)}</td>
+            <td>${escHtml(row.lv)}</td>
+            <td><button class="btn-delete-phrase" onclick="deleteLesson(${row.id})">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+async function addLesson() {
+    const ruInput = document.getElementById('new-ru');
+    const lvInput = document.getElementById('new-lv');
+    const ru = ruInput.value.trim();
+    const lv = lvInput.value.trim();
+
+    if (!ru || !lv) {
+        alert('Введите фразу на обоих языках!');
+        return;
+    }
+
+    const { error } = await db.from('lessons').insert({
+        level: currentLessonLevel,
+        ru: ru,
+        lv: lv
+    });
+
+    if (error) {
+        alert('Ошибка при добавлении: ' + error.message);
+        return;
+    }
+
+    ruInput.value = '';
+    lvInput.value = '';
+    ruInput.focus();
+    await loadLessonsAdmin(currentLessonLevel);
+}
+
+async function bulkAddLessons() {
+    const text = document.getElementById('bulk-input').value.trim();
+    const resultEl = document.getElementById('bulk-result');
+
+    if (!text) { resultEl.textContent = '⚠️ Вставьте фразы'; return; }
+
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const rows = [];
+    const bad = [];
+
+    for (const line of lines) {
+        const parts = line.split('|');
+        if (parts.length < 2) { bad.push(line); continue; }
+        const ru = parts[0].trim();
+        const lv = parts[1].trim();
+        if (ru && lv) rows.push({ level: currentLessonLevel, ru, lv });
+        else bad.push(line);
+    }
+
+    if (rows.length === 0) {
+        resultEl.textContent = '❌ Не нашёл ни одной правильной строки. Проверьте формат.';
+        resultEl.style.color = '#e74c3c';
+        return;
+    }
+
+    resultEl.textContent = '⏳ Загружаю...';
+    resultEl.style.color = '#888';
+
+    const { error } = await db.from('lessons').insert(rows);
+
+    if (error) {
+        resultEl.textContent = '❌ Ошибка: ' + error.message;
+        resultEl.style.color = '#e74c3c';
+        return;
+    }
+
+    document.getElementById('bulk-input').value = '';
+    resultEl.textContent = `✅ Добавлено ${rows.length} фраз!` + (bad.length > 0 ? ` (пропущено ${bad.length} строк с ошибкой)` : '');
+    resultEl.style.color = '#27ae60';
+    await loadLessonsAdmin(currentLessonLevel);
+}
+
+async function deleteLesson(id) {
+    if (!confirm('Удалить эту фразу?')) return;
+
+    const { error } = await db.from('lessons').delete().eq('id', id);
+    if (error) {
+        alert('Ошибка при удалении: ' + error.message);
+        return;
+    }
+    await loadLessonsAdmin(currentLessonLevel);
+}
+
+async function loadCounters() {
+    const { data: users } = await db.from('users').select('type, last_access');
+    if (!users) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+
+    let todayCount = 0;
+    let subscriberCount = 0;
+    let sponsorCount = 0;
+
+    for (const u of users) {
+        const lastAccess = new Date(u.last_access);
+        if (lastAccess >= yesterday) todayCount++;
+        if (u.type === 'subscriber') subscriberCount++;
+        if (u.type.startsWith('sponsor')) sponsorCount++;
+    }
+
+    document.getElementById('cnt-total').textContent = users.length;
+    document.getElementById('cnt-today').textContent = todayCount;
+    document.getElementById('cnt-subscribers').textContent = subscriberCount;
+    document.getElementById('cnt-sponsors').textContent = sponsorCount;
+}
+
+async function loadUsers() {
+    const tbody = document.getElementById('users-tbody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-msg">Загрузка...</td></tr>';
+
+    const { data: users, error } = await db
+        .from('users').select('*').order('created_at', { ascending: false });
+
+    if (error || !users) {
+        tbody.innerHTML = '<tr><td colspan="7" class="no-users">Ошибка загрузки</td></tr>';
+        return;
+    }
+    if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="no-users">Пока нет учеников — добавьте первого!</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = '';
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    const typeLabels = {
+        subscriber: 'Подписчик', sponsor1: '⭐ Спонсор 1',
+        sponsor2: '⭐⭐ Спонсор 2', sponsor3: '⭐⭐⭐ Спонсор 3'
+    };
+
+    for (const u of users) {
+        const lastAccess = new Date(u.last_access);
+        const diffMs = now - lastAccess;
+
+        // Статус активности
+        let actDot = diffMs < 2*dayMs ? '🟢' : diffMs < 7*dayMs ? '🟡' : '🔴';
+
+        // Статус доступа
+        let accessInfo = '—';
+        let accessStyle = '';
+        if (u.access_expires) {
+            const exp = new Date(u.access_expires);
+            const daysLeft = Math.ceil((exp - now) / dayMs);
+            if (daysLeft < 0) {
+                accessInfo = '🔒 Истёк';
+                accessStyle = 'color:#e74c3c;font-weight:bold';
+                actDot = '🔒';
+            } else if (daysLeft <= 3) {
+                accessInfo = `⚠️ ${daysLeft} дн.`;
+                accessStyle = 'color:#e67e22;font-weight:bold';
+            } else {
+                accessInfo = `${daysLeft} дн.`;
+            }
+        }
+
+        const code = u.personal_code || '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${actDot}</td>
+            <td><strong>${escHtml(u.name)}</strong><br><span style="font-size:12px;color:#aaa">${escHtml(u.email||'')}</span></td>
+            <td style="font-size:13px">${typeLabels[u.type] || u.type}</td>
+            <td style="font-size:18px;font-weight:bold;letter-spacing:4px;color:#1a3a6e">${code}</td>
+            <td style="${accessStyle}">${accessInfo}</td>
+            <td>${u.sessions_count || 0}</td>
+            <td>
+                <button class="btn-delete-phrase" style="background:#eaf4fb;border-color:#3498db;color:#3498db;margin-bottom:4px"
+                    onclick="extendUser(${u.id}, '${escHtml(u.name)}', '${escHtml(u.email||'')}')">+30 дн.</button>
+                <button class="btn-delete-phrase" style="border-color:#aaa;color:#aaa"
+                    onclick="resendCode(${u.id}, '${escHtml(u.name)}', '${escHtml(u.email||'')}')">📧</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+// ── ДОБАВИТЬ УЧЕНИКА ─────────────────────────────────
+function generateCode() {
+    return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+const typeToMaxLevel = { subscriber: 1, sponsor1: 1, sponsor2: 2, sponsor3: 3 };
+
+async function addUser() {
+    const name     = document.getElementById('new-user-name').value.trim();
+    const email    = document.getElementById('new-user-email').value.trim();
+    const type     = document.getElementById('new-user-type').value;
+    const days     = parseInt(document.getElementById('new-user-duration').value);
+    const resultEl = document.getElementById('add-user-result');
+
+    if (!name) { alert('Введите имя ученика!'); return; }
+
+    const code    = generateCode();
+    const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    const maxLvl  = typeToMaxLevel[type] || 1;
+
+    const { data: newUser, error } = await db.from('users').insert({
+        name, email: email || null, type,
+        personal_code: code, max_level: maxLvl,
+        access_expires: expires.toISOString(),
+        first_access: new Date().toISOString(),
+        last_access: new Date().toISOString(),
+        sessions_count: 0
+    }).select().single();
+
+    if (error) { alert('Ошибка: ' + error.message); return; }
+
+    const expStr = expires.toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+    let emailStatus = '';
+
+    if (email && RESEND_API_KEY) {
+        const sent = await sendEmailCode(email, name, code, expStr);
+        emailStatus = sent ? '<br>✉️ Письмо отправлено на ' + escHtml(email) : '<br>⚠️ Письмо не отправилось — отправьте код вручную';
+    } else if (email) {
+        emailStatus = '<br>⚠️ Resend не настроен — отправьте код вручную на ' + escHtml(email);
+    }
+
+    resultEl.innerHTML = `
+        ✅ <strong>${escHtml(name)}</strong> добавлен!<br>
+        🔑 Личный код: <span style="font-size:28px;font-weight:bold;color:#1a3a6e;letter-spacing:6px">${code}</span><br>
+        📅 Доступ до: ${expStr}${emailStatus}
+    `;
+    resultEl.style.display = 'block';
+
+    document.getElementById('new-user-name').value = '';
+    document.getElementById('new-user-email').value = '';
+    await loadUsers();
+    await loadCounters();
+}
+
+async function extendUser(userId, name, email) {
+    const days = parseInt(prompt(`Продлить доступ для ${name} на сколько дней?\n(например: 30)`, '30'));
+    if (!days || isNaN(days)) return;
+
+    const { data: u } = await db.from('users').select('access_expires, personal_code').eq('id', userId).single();
+    const base    = u.access_expires && new Date(u.access_expires) > new Date() ? new Date(u.access_expires) : new Date();
+    const newExp  = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+    const newCode = generateCode();
+
+    await db.from('users').update({ access_expires: newExp.toISOString(), personal_code: newCode }).eq('id', userId);
+
+    const expStr = newExp.toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
+    alert(`✅ Продлено!\n${name}\nНовый код: ${newCode}\nДо: ${expStr}`);
+
+    if (email && RESEND_API_KEY) await sendEmailCode(email, name, newCode, expStr);
+    await loadUsers();
+}
+
+async function resendCode(userId, name, email) {
+    if (!email) { alert('У этого ученика не указан email.\nСкопируйте код из таблицы и отправьте вручную.'); return; }
+    const { data: u } = await db.from('users').select('personal_code, access_expires').eq('id', userId).single();
+    if (!u || !u.personal_code) { alert('Код не найден.'); return; }
+    const expStr = u.access_expires ? new Date(u.access_expires).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' }) : '—';
+    if (RESEND_API_KEY) {
+        const ok = await sendEmailCode(email, name, u.personal_code, expStr);
+        alert(ok ? `✅ Письмо отправлено на ${email}` : '❌ Ошибка отправки. Проверьте Resend API ключ.');
+    } else {
+        alert(`Resend не настроен.\nКод ${name}: ${u.personal_code}\nОтправьте вручную на ${email}`);
+    }
+}
+
+// ── ОТПРАВКА ПИСЬМА (Resend) ─────────────────────────
+async function sendEmailCode(email, name, code, expiresStr) {
+    try {
+        const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + RESEND_API_KEY },
+            body: JSON.stringify({
+                from: `${FROM_NAME} <${FROM_EMAIL}>`,
+                to: [email],
+                subject: 'Ваш код доступа к латышскому тренажёру',
+                html: `
+                    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                        <h2 style="color:#1a3a6e">🇱🇻 Латышский тренажёр</h2>
+                        <p>Привет, <strong>${name}</strong>!</p>
+                        <p>Ваш личный код доступа:</p>
+                        <div style="font-size:48px;font-weight:bold;letter-spacing:12px;color:#1a3a6e;padding:20px 0">${code}</div>
+                        <p>Доступ действует до: <strong>${expiresStr}</strong></p>
+                        <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+                        <p style="color:#888;font-size:13px">Чтобы войти: введите ваше имя и этот код на странице тренажёра.</p>
+                    </div>
+                `
+            })
+        });
+        return res.ok;
+    } catch(e) { return false; }
+}
+
+// ── УТИЛИТЫ ─────────────────────────────────────────
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
