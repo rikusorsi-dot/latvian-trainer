@@ -1,22 +1,22 @@
 name: Daily Report
-  on:
-    schedule:
-      - cron: '0 18 * * *'
-    workflow_dispatch:
-  jobs:
-    report:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-node@v4
-          with:
-            node-version: '20'
-        - name: Install dependencies
-          run: npm install
-        - name: Send report
-          run: node report.js
-          env:
-            SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-            SUPABASE_ANON_KEY: ${{ secrets.ANON_KEY }}
-            RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-            REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Send report
+        run: node report.js
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.ANON_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
