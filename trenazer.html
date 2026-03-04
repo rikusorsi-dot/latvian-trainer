@@ -195,6 +195,25 @@
         .btn-restart { width:100%; padding:18px; font-size:19px; background:#3498db; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; }
         .btn-weak    { width:100%; padding:14px; font-size:17px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; display:none; font-weight:bold; }
         .btn-menu    { width:100%; padding:14px; font-size:17px; background:#ecf0f1; color:#555; border:none; border-radius:14px; cursor:pointer; }
+        .btn-opinion { width:100%; padding:14px; font-size:17px; background:#8e44ad; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
+
+        /* ── FEEDBACK SCREEN ── */
+        #feedback-screen { display:none; width:100%; max-width:480px; }
+        .feedback-card { background:white; border-radius:18px; padding:28px 22px; box-shadow:0 4px 16px rgba(0,0,0,0.1); }
+        .feedback-card h2 { font-size:22px; color:#2c3e50; margin-bottom:8px; }
+        .feedback-card p  { font-size:14px; color:#888; margin-bottom:16px; line-height:1.6; }
+        #feedback-text {
+            width:100%; padding:14px; font-size:16px; border:2px solid #ddd;
+            border-radius:12px; outline:none; resize:vertical; min-height:120px;
+            font-family:Arial; transition:border-color 0.2s;
+        }
+        #feedback-text:focus { border-color:#8e44ad; }
+        .btn-send-feedback {
+            width:100%; padding:15px; font-size:18px; background:#8e44ad; color:white;
+            border:none; border-radius:12px; cursor:pointer; margin-top:12px; font-weight:bold;
+        }
+        .btn-send-feedback:disabled { opacity:0.5; cursor:not-allowed; }
+        #feedback-thanks { display:none; text-align:center; padding:20px; font-size:18px; color:#27ae60; }
 
         /* ── OFFER SCREEN ── */
         #offer-screen { display:none; width:100%; max-width:480px; text-align:center; }
@@ -320,6 +339,21 @@
     </div>
     <button class="btn-restart" onclick="restartTrainer()">🔄 Повторить все фразы</button>
     <button class="btn-weak" id="btn-weak" onclick="repeatWeak()">⚡ Повторить слабые (<span id="weak-count">0</span>)</button>
+    <button class="btn-opinion" id="btn-opinion" onclick="showFeedback()">💬 Твоё мнение</button>
+    <button class="btn-menu" onclick="goToMenu()">← В меню</button>
+</div>
+
+<!-- ── FEEDBACK ── -->
+<div id="feedback-screen">
+    <h1>🇱🇻 Твоё мнение</h1><br>
+    <div class="feedback-card">
+        <h2>💬 Что думаешь о тренажёре?</h2>
+        <p>Напиши что понравилось, что неудобно, что хочешь изменить — Рихард читает каждый отзыв.</p>
+        <textarea id="feedback-text" placeholder="Напиши здесь..."></textarea>
+        <button class="btn-send-feedback" id="btn-send-feedback" onclick="sendFeedback()">📨 Отправить</button>
+        <div id="feedback-thanks">✅ Спасибо! Рихард прочитает твой отзыв.</div>
+    </div>
+    <br>
     <button class="btn-menu" onclick="goToMenu()">← В меню</button>
 </div>
 
@@ -745,6 +779,10 @@ function showResult() {
         btnWeak.style.display = 'none';
     }
 
+    // Кнопка "Твоё мнение" — только после Блока 1
+    const opinionBtn = document.getElementById('btn-opinion');
+    opinionBtn.style.display = currentLevel === 'b1' ? 'block' : 'none';
+
     // После блока 2 добавляем кнопку перехода к офферу
     const menuBtn = document.getElementById('result-screen').querySelector('.btn-menu');
     if (currentLevel === 'b2') {
@@ -782,10 +820,11 @@ function repeatWeak() {
 function goToMenu() {
     stopListening();
     setState(ST.IDLE);
-    document.getElementById('result-screen').style.display  = 'none';
-    document.getElementById('trainer-screen').style.display = 'none';
-    document.getElementById('offer-screen').style.display   = 'none';
-    document.getElementById('level-screen').style.display   = 'block';
+    document.getElementById('result-screen').style.display   = 'none';
+    document.getElementById('trainer-screen').style.display  = 'none';
+    document.getElementById('offer-screen').style.display    = 'none';
+    document.getElementById('feedback-screen').style.display = 'none';
+    document.getElementById('level-screen').style.display    = 'block';
     loadLastProgress();
     loadStreak();
     setupBlockButtons();
@@ -843,6 +882,37 @@ async function saveProgressToSupabase(level, knew, didnt) {
     } catch(e) { console.warn('Прогресс не сохранился онлайн:', e); }
 }
 
+// ── FEEDBACK ──────────────────────────────────────────
+function showFeedback() {
+    document.getElementById('result-screen').style.display   = 'none';
+    document.getElementById('feedback-screen').style.display = 'block';
+    document.getElementById('feedback-text').value = '';
+    document.getElementById('feedback-thanks').style.display = 'none';
+    document.getElementById('btn-send-feedback').style.display = 'block';
+    document.getElementById('btn-send-feedback').disabled = false;
+}
+
+async function sendFeedback() {
+    const text = document.getElementById('feedback-text').value.trim();
+    if (!text) { document.getElementById('feedback-text').focus(); return; }
+
+    const btn = document.getElementById('btn-send-feedback');
+    btn.disabled = true;
+    btn.textContent = '⏳ Отправляю...';
+
+    try {
+        await db.from('feedback').insert({
+            user_id:   currentUser?.userId || null,
+            user_name: currentUser?.name   || 'Аноним',
+            block:     currentLevel === 'b1' ? 1 : 2,
+            message:   text
+        });
+    } catch(e) { console.warn('Feedback error:', e); }
+
+    btn.style.display = 'none';
+    document.getElementById('feedback-thanks').style.display = 'block';
+}
+
 // ── UTILS ─────────────────────────────────────────────
 function shuffle(arr) {
     const a = [...arr];
@@ -855,4 +925,5 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
 
