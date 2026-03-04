@@ -471,10 +471,9 @@ let mobileUnlocked = false; // становится true после первог
 
 // ── SPEECH RECOGNITION ───────────────────────────────
 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition    = null;
-let speechRunning  = false;
-let speechInited   = false;
-let restartCooldown = false; // защита от быстрого loop на iOS
+let recognition   = null;
+let speechRunning = false;
+let speechInited  = false;
 
 function initSpeech() {
     if (speechInited) return;
@@ -495,8 +494,7 @@ function initSpeech() {
     recognition.maxAlternatives = 5;
 
     recognition.onstart = () => {
-        speechRunning  = true;
-        restartCooldown = false;
+        speechRunning = true;
     };
 
     recognition.onresult = (e) => {
@@ -519,28 +517,17 @@ function initSpeech() {
         }
         // На мобилке не делаем авто-рестарт при ошибке — ждём тапа
         if (S === ST.LISTENING || S === ST.REPEATING) {
-            scheduleRestart(600);
+            setTimeout(() => { if (!speechRunning) startListening(); }, 500);
         }
     };
 
     recognition.onend = () => {
         speechRunning = false;
         if (S !== ST.LISTENING && S !== ST.REPEATING) return;
-        // После первого тапа (разрешение получено) — автомат везде
-        scheduleRestart(isMobile ? 400 : 250);
+        setTimeout(() => { if (!speechRunning) startListening(); }, isMobile ? 500 : 250);
     };
 }
 
-let restartTimer = null;
-function scheduleRestart(delay) {
-    if (restartCooldown) return;
-    restartCooldown = true;
-    clearTimeout(restartTimer);
-    restartTimer = setTimeout(() => {
-        restartCooldown = false;
-        if (S === ST.LISTENING || S === ST.REPEATING) startListening();
-    }, delay);
-}
 
 function startListening() {
     if (!recognition || speechRunning) return;
@@ -1008,6 +995,7 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
 
 
 
