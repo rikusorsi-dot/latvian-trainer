@@ -522,6 +522,29 @@
             </table>
         </div>
     </div>
+
+    <!-- Отзывы -->
+    <div class="lessons-section" style="margin-top:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h2>💬 Отзывы учеников</h2>
+            <button class="btn-refresh" onclick="loadFeedback()">↻ Обновить</button>
+        </div>
+        <div class="table-wrap">
+            <table id="feedback-table" style="min-width:500px">
+                <thead>
+                    <tr>
+                        <th style="width:15%">Дата</th>
+                        <th style="width:20%">Ученик</th>
+                        <th style="width:8%">Блок</th>
+                        <th style="width:57%">Отзыв</th>
+                    </tr>
+                </thead>
+                <tbody id="feedback-tbody">
+                    <tr><td colspan="4" class="loading-msg">Загрузка...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script src="supabase-config.js"></script>
@@ -549,7 +572,7 @@ function adminLogout() {
 
 // ── ЗАГРУЗКА ДАННЫХ ─────────────────────────────────
 async function loadData() {
-    await Promise.all([loadCounters(), loadUsers(), loadLessonsAdmin(1)]);
+    await Promise.all([loadCounters(), loadUsers(), loadLessonsAdmin(1), loadFeedback()]);
 }
 
 // ── УПРАВЛЕНИЕ УРОКАМИ ───────────────────────────────
@@ -714,6 +737,39 @@ async function bulkAddLessons() {
     resultEl.textContent = `✅ Добавлено ${rows.length} фраз!` + (bad.length > 0 ? ` (пропущено ${bad.length} строк с ошибкой)` : '');
     resultEl.style.color = '#27ae60';
     await loadLessonsAdmin(currentLessonLevel);
+}
+
+async function loadFeedback() {
+    const tbody = document.getElementById('feedback-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="4" class="loading-msg">Загрузка...</td></tr>';
+
+    const { data, error } = await db
+        .from('feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+    if (error || !data) {
+        tbody.innerHTML = '<tr><td colspan="4" class="no-users">Ошибка загрузки или таблица ещё не создана</td></tr>';
+        return;
+    }
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="no-users">Отзывов пока нет</td></tr>';
+        return;
+    }
+    tbody.innerHTML = '';
+    for (const row of data) {
+        const date = new Date(row.created_at).toLocaleDateString('ru-RU', { day:'numeric', month:'short' });
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="color:#888;font-size:13px">${date}</td>
+            <td><strong>${escHtml(row.user_name || '—')}</strong></td>
+            <td style="text-align:center">Блок ${row.block || '—'}</td>
+            <td>${escHtml(row.message)}</td>
+        `;
+        tbody.appendChild(tr);
+    }
 }
 
 async function deleteLesson(id) {
@@ -945,6 +1001,7 @@ function escHtml(str) {
 </script>
 </body>
 </html>
+
 
 
 
