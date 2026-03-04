@@ -489,10 +489,12 @@
             </summary>
             <div style="margin-top:10px">
                 <p style="font-size:13px;color:#777;margin-bottom:8px">
-                    Каждая строчка = одна фраза. Разделитель между русским и латышским — вертикальная черта <strong>|</strong>
+                    Два варианта формата — оба работают:<br>
+                    <strong>1)</strong> Русская строка, под ней латышская (чередуются)<br>
+                    <strong>2)</strong> Через палочку: <code>Я говорю | Es runāju</code>
                 </p>
-                <textarea id="bulk-input" rows="8"
-                    placeholder="Я говорю | Es runāju&#10;Я понимаю | Es saprotu&#10;Я хочу | Es gribu&#10;..."
+                <textarea id="bulk-input" rows="10"
+                    placeholder="Я говорю&#10;Es runāju&#10;Я понимаю&#10;Es saprotu&#10;Я хочу&#10;Es gribu&#10;..."
                     style="width:100%;padding:12px;font-size:14px;border:2px solid #ddd;border-radius:10px;outline:none;resize:vertical;font-family:Arial"></textarea>
                 <div style="display:flex;gap:10px;margin-top:8px;align-items:center">
                     <button class="btn-add-phrase" onclick="bulkAddLessons()">⬆ Загрузить все фразы</button>
@@ -648,14 +650,31 @@ async function bulkAddLessons() {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const rows = [];
     const bad = [];
+    const blockVal = currentLessonLevel === 1 ? currentLessonBlock : 1;
 
-    for (const line of lines) {
-        const parts = line.split('|');
-        if (parts.length < 2) { bad.push(line); continue; }
-        const ru = parts[0].trim();
-        const lv = parts[1].trim();
-        if (ru && lv) rows.push({ level: currentLessonLevel, block: currentLessonLevel === 1 ? currentLessonBlock : 1, ru, lv });
-        else bad.push(line);
+    // Определяем формат: если есть строки с |, используем формат с разделителем
+    // Иначе — чередующийся формат (строка1=русский, строка2=латышский)
+    const hasPipe = lines.some(l => l.includes('|'));
+
+    if (hasPipe) {
+        // Формат: "Русский | Латышский"
+        for (const line of lines) {
+            const parts = line.split('|');
+            if (parts.length < 2) { bad.push(line); continue; }
+            const ru = parts[0].trim();
+            const lv = parts[1].trim();
+            if (ru && lv) rows.push({ level: currentLessonLevel, block: blockVal, ru, lv });
+            else bad.push(line);
+        }
+    } else {
+        // Формат: строка1=русский, строка2=латышский, строка3=русский...
+        for (let i = 0; i + 1 < lines.length; i += 2) {
+            const ru = lines[i].trim();
+            const lv = lines[i + 1].trim();
+            if (ru && lv) rows.push({ level: currentLessonLevel, block: blockVal, ru, lv });
+            else bad.push(lines[i]);
+        }
+        if (lines.length % 2 !== 0) bad.push(lines[lines.length - 1]);
     }
 
     if (rows.length === 0) {
@@ -910,4 +929,5 @@ function escHtml(str) {
 </script>
 </body>
 </html>
+
 
