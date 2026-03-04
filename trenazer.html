@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Латышский язык — Тренажёр</title>
+    <title>Латышский тренажёр</title>
     <script src="supabase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
             font-family: Arial, sans-serif;
             background: #f5f5f5;
@@ -16,419 +15,289 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px 16px;
+            padding: 16px;
         }
 
-        h1 {
-            font-size: 24px;
-            color: #2c3e50;
-            text-align: center;
-            margin-bottom: 6px;
+        /* ── USER BAR ── */
+        #user-bar {
+            width: 100%; max-width: 480px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px; padding: 8px 14px;
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
         }
+        .user-name { font-weight: bold; color: #1a3a6e; }
+        #btn-logout {
+            font-size: 13px; color: #888;
+            background: none; border: 1px solid #ddd;
+            border-radius: 8px; padding: 5px 12px; cursor: pointer;
+        }
+        #btn-logout:hover { color: #e74c3c; border-color: #e74c3c; }
 
-        /* ── ЭКРАН ВЫБОРА УРОВНЯ ── */
+        /* ── LEVEL SCREEN ── */
         #level-screen { width: 100%; max-width: 480px; text-align: center; }
-
-        .level-intro {
-            font-size: 18px;
-            color: #555;
-            margin-bottom: 10px;
-        }
-
-        /* Прогресс прошлой сессии */
-        #last-progress {
-            background: white;
-            border-radius: 14px;
-            padding: 16px 20px;
-            margin-bottom: 22px;
-            font-size: 17px;
-            color: #444;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            display: none;
-        }
-        #last-progress strong { color: #2c3e50; }
-        #last-progress .lp-knew { color: #27ae60; font-weight: bold; }
-        #last-progress .lp-didnt { color: #c0392b; font-weight: bold; }
+        h1 { font-size: 24px; color: #2c3e50; text-align: center; margin-bottom: 16px; }
 
         .level-btn {
-            display: block;
-            width: 100%;
-            padding: 18px;
-            margin-bottom: 14px;
-            font-size: 21px;
-            border: none;
-            border-radius: 14px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: transform 0.1s, opacity 0.2s;
+            display: block; width: 100%; padding: 18px;
+            margin-bottom: 14px; font-size: 20px;
+            border: none; border-radius: 14px;
+            cursor: pointer; font-weight: bold;
+            transition: transform 0.1s;
         }
         .level-btn:active { transform: scale(0.97); }
-        .level-btn small {
-            display: block;
-            font-size: 14px;
-            font-weight: normal;
-            margin-top: 4px;
-            opacity: 0.85;
-        }
+        .level-btn small { display: block; font-size: 13px; font-weight: normal; margin-top: 4px; opacity: 0.85; }
         .level-1 { background: #27ae60; color: white; }
         .level-2 { background: #e67e22; color: white; }
         .level-3 { background: #c0392b; color: white; }
+        .level-btn.locked { opacity: 0.45; cursor: not-allowed; filter: grayscale(60%); }
 
-        /* ── ЭКРАН ТРЕНАЖЁРА ── */
+        #streak-box {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+            color: white; border-radius: 14px; padding: 10px 18px;
+            margin-bottom: 14px; font-size: 17px; font-weight: bold; display: none;
+        }
+        #last-progress {
+            background: white; border-radius: 14px; padding: 14px 18px;
+            margin-bottom: 18px; font-size: 15px; color: #444;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07); display: none;
+        }
+        .lp-knew  { color: #27ae60; font-weight: bold; }
+        .lp-didnt { color: #c0392b; font-weight: bold; }
+        #loading-lessons { text-align:center; color:#aaa; font-size:15px; padding:10px; display:none; }
+
+        /* ── TRAINER SCREEN ── */
         #trainer-screen { display: none; width: 100%; max-width: 480px; }
 
         .stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 19px;
+            display: flex; justify-content: space-between;
+            margin-bottom: 10px; font-size: 19px;
         }
         .stat-knew  { color: #27ae60; font-weight: bold; }
         .stat-didnt { color: #c0392b; font-weight: bold; }
         .stat-num   { color: #888; }
 
-        .progress-wrap {
-            background: #ddd;
-            border-radius: 8px;
-            height: 8px;
-            margin-bottom: 22px;
-        }
-        .progress-fill {
-            background: #3498db;
-            height: 8px;
-            border-radius: 8px;
-            transition: width 0.3s;
-        }
+        .progress-wrap { background: #ddd; border-radius: 8px; height: 8px; margin-bottom: 20px; }
+        .progress-fill { background: #3498db; height: 8px; border-radius: 8px; transition: width 0.3s; }
 
-        /* Карточка с анимацией переворота */
+        /* Card */
         .card-scene {
-            width: 100%;
-            height: 220px;
-            perspective: 900px;
-            cursor: pointer;
-            margin-bottom: 22px;
-            -webkit-tap-highlight-color: transparent;
+            width: 100%; height: 200px;
+            perspective: 900px; margin-bottom: 22px;
         }
-
         .card-inner {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transform-style: preserve-3d;
-            transition: transform 0.45s ease;
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d; transition: transform 0.5s ease;
         }
-
-        .card-scene.flipped .card-inner {
-            transform: rotateY(180deg);
-        }
+        .card-inner.flipped { transform: rotateY(180deg); }
 
         .card-front, .card-back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            border-radius: 18px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 30px 24px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; -webkit-backface-visibility: hidden;
+            border-radius: 18px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 24px; box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        .card-front { background: white; }
+        .card-back  { background: white; transform: rotateY(180deg); }
+
+        .card-hint   { font-size: 13px; color: #aaa; margin-bottom: 10px; letter-spacing: 0.5px; }
+        .card-phrase { font-size: 28px; font-weight: bold; text-align: center; line-height: 1.35; }
+        .card-front .card-phrase { color: #1a1a1a; }
+        .card-back  .card-phrase { color: #8b1a1a; }
+
+        /* Flash overlay */
+        .card-flash {
+            position: absolute; inset: 0; border-radius: 18px;
+            opacity: 0; pointer-events: none; transition: opacity 0.25s;
+        }
+        .card-flash.on-green { background: rgba(39,174,96,0.25); opacity: 1; }
+        .card-flash.on-red   { background: rgba(231,76,60,0.25);  opacity: 1; }
+
+        /* ── VOICE AREA ── */
+        #voice-area { text-align: center; }
+
+        #mic-btn {
+            width: 80px; height: 80px; border-radius: 50%;
+            border: none; font-size: 34px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 12px; transition: background 0.25s, transform 0.1s;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+            background: #ecf0f1; color: #888;
+        }
+        #mic-btn:active { transform: scale(0.94); }
+
+        /* Mic state classes */
+        #mic-btn.s-listening {
+            background: #3498db; color: white;
+            animation: micPulse 1.3s ease-in-out infinite;
+        }
+        #mic-btn.s-correct  { background: #27ae60; color: white; }
+        #mic-btn.s-wrong    { background: #e74c3c; color: white; }
+        #mic-btn.s-repeating {
+            background: #e74c3c; color: white;
+            animation: micBlink 0.7s ease-in-out infinite;
+        }
+        #mic-btn.s-checking { background: #f39c12; color: white; }
+
+        @keyframes micPulse {
+            0%, 100% { transform: scale(1);    box-shadow: 0 4px 14px rgba(52,152,219,0.4); }
+            50%       { transform: scale(1.09); box-shadow: 0 4px 24px rgba(52,152,219,0.7); }
+        }
+        @keyframes micBlink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.45; }
         }
 
-        .card-front {
-            background: white;
+        #voice-status {
+            font-size: 16px; color: #555; min-height: 22px; margin-bottom: 10px;
         }
 
-        .card-front .phrase {
-            font-size: 28px;
-            color: #1a1a1a;
-            text-align: center;
-            line-height: 1.4;
-            font-weight: bold;
+        /* Repeat dots */
+        #repeat-area { display: none; }
+        #repeat-label { font-size: 15px; color: #e74c3c; font-weight: bold; margin-bottom: 8px; }
+        .repeat-dots { display: flex; gap: 10px; justify-content: center; }
+        .rdot {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #ddd; transition: background 0.3s, transform 0.2s;
         }
+        .rdot.done { background: #27ae60; transform: scale(1.2); }
 
-        .card-front .hint {
-            font-size: 14px;
-            color: #bbb;
-            margin-top: 18px;
-            letter-spacing: 0.5px;
+        /* Manual fallback buttons */
+        #manual-buttons { display: none; gap: 14px; margin-top: 14px; }
+        .btn-knew  { flex:1; padding:18px; font-size:20px; background:#27ae60; color:white; border:none; border-radius:14px; cursor:pointer; font-weight:bold; }
+        .btn-didnt { flex:1; padding:18px; font-size:20px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; font-weight:bold; }
+
+        /* Skip button (appears after 8s if stuck) */
+        #btn-skip {
+            display: none; width: 100%; margin-top: 12px;
+            padding: 12px; font-size: 15px; color: #aaa;
+            background: none; border: 1px dashed #ccc;
+            border-radius: 10px; cursor: pointer;
         }
+        #btn-skip:hover { color: #888; border-color: #aaa; }
 
-        .card-back {
-            background: white;
-            transform: rotateY(180deg);
-        }
-
-        .card-back .phrase {
-            font-size: 27px;
-            color: #8b1a1a;
-            text-align: center;
-            line-height: 1.4;
-            font-weight: bold;
-        }
-
-        /* Кнопки ответа */
-        .answer-buttons {
-            display: none;
-            gap: 14px;
-        }
-
-        .btn-knew, .btn-didnt {
-            flex: 1;
-            padding: 20px;
-            font-size: 21px;
-            border: none;
-            border-radius: 14px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: transform 0.1s;
-        }
-        .btn-knew:active, .btn-didnt:active { transform: scale(0.97); }
-        .btn-knew  { background: #27ae60; color: white; }
-        .btn-didnt { background: #e74c3c; color: white; }
-
-        .tap-hint {
-            text-align: center;
-            font-size: 15px;
-            color: #aaa;
-            margin-bottom: 12px;
-        }
-
-        /* ── ЭКРАН РЕЗУЛЬТАТОВ ── */
+        /* ── RESULT SCREEN ── */
         #result-screen { display: none; width: 100%; max-width: 480px; text-align: center; }
-
         .result-card {
-            background: white;
-            border-radius: 18px;
-            padding: 36px 26px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            margin-bottom: 18px;
+            background: white; border-radius: 18px; padding: 32px 24px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1); margin-bottom: 16px;
         }
-        .result-card h2 { font-size: 28px; color: #2c3e50; margin-bottom: 22px; }
+        .result-card h2 { font-size: 26px; color: #2c3e50; margin-bottom: 20px; }
+        .result-row { display: flex; justify-content: space-around; margin-bottom: 16px; }
+        .result-num   { font-size: 52px; font-weight: bold; }
+        .r-knew  { color: #27ae60; }
+        .r-didnt { color: #e74c3c; }
+        .result-label { font-size: 15px; color: #888; margin-top: 4px; }
+        .result-message { font-size: 20px; color: #2c3e50; }
+        .result-date { font-size: 14px; color: #aaa; margin-top: 6px; }
 
-        .result-row { display: flex; justify-content: space-around; margin-bottom: 18px; }
-
-        .result-knew  { font-size: 52px; color: #27ae60; font-weight: bold; }
-        .result-didnt { font-size: 52px; color: #e74c3c; font-weight: bold; }
-        .result-label { font-size: 17px; color: #888; margin-top: 4px; }
-
-        .result-message { font-size: 21px; color: #2c3e50; margin-top: 10px; }
-
-        .result-date { font-size: 15px; color: #aaa; margin-top: 8px; }
-
-        .btn-restart {
-            width: 100%;
-            padding: 20px;
-            font-size: 21px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 14px;
-            cursor: pointer;
-            margin-bottom: 12px;
-        }
-        .btn-menu {
-            width: 100%;
-            padding: 17px;
-            font-size: 19px;
-            background: #ecf0f1;
-            color: #555;
-            border: none;
-            border-radius: 14px;
-            cursor: pointer;
-        }
-
-        /* ── ПАНЕЛЬ ПОЛЬЗОВАТЕЛЯ ── */
-        #user-bar {
-            width: 100%;
-            max-width: 480px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-            padding: 8px 14px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-        }
-
-        #user-bar .user-label {
-            font-size: 15px;
-            color: #555;
-        }
-
-        #user-bar .user-name {
-            font-weight: bold;
-            color: #1a3a6e;
-        }
-
-        #btn-logout {
-            font-size: 13px;
-            color: #888;
-            background: none;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 5px 12px;
-            cursor: pointer;
-        }
-
-        #btn-logout:hover { color: #e74c3c; border-color: #e74c3c; }
-
-        /* Заблокированный уровень */
-        .level-btn.locked {
-            opacity: 0.45;
-            cursor: not-allowed;
-            filter: grayscale(60%);
-        }
-
-        /* ── СЧЁТЧИК ДНЕЙ ── */
-        #streak-box {
-            background: linear-gradient(135deg, #f39c12, #e67e22);
-            color: white;
-            border-radius: 14px;
-            padding: 12px 20px;
-            margin-bottom: 16px;
-            font-size: 18px;
-            font-weight: bold;
-            display: none;
-        }
-        #streak-box span { font-size: 28px; }
-
-        /* ── СВАЙП ПОДСКАЗКА ── */
-        .swipe-hint {
-            display: none;
-            justify-content: space-between;
-            font-size: 13px;
-            color: #bbb;
-            margin-bottom: 6px;
-            padding: 0 4px;
-        }
-        @media (max-width: 600px) { .swipe-hint { display: flex; } }
-
-        /* Визуальный наклон карточки при свайпе */
-        .card-inner.swiping-right { transform: rotate(5deg) translateX(20px) !important; }
-        .card-inner.swiping-left  { transform: rotate(-5deg) translateX(-20px) !important; }
-
-        /* ── КНОПКА СЛАБЫХ ФРАЗ ── */
-        .btn-weak {
-            width: 100%;
-            padding: 17px;
-            font-size: 18px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 14px;
-            cursor: pointer;
-            margin-bottom: 12px;
-            display: none;
-        }
+        .btn-restart { width:100%; padding:18px; font-size:19px; background:#3498db; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; }
+        .btn-weak    { width:100%; padding:14px; font-size:17px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; display:none; font-weight:bold; }
+        .btn-menu    { width:100%; padding:14px; font-size:17px; background:#ecf0f1; color:#555; border:none; border-radius:14px; cursor:pointer; }
     </style>
 </head>
 <body>
 
-<!-- ── ПАНЕЛЬ ПОЛЬЗОВАТЕЛЯ ── -->
+<!-- ── USER BAR ── -->
 <div id="user-bar">
-    <span class="user-label">Привет, <span class="user-name" id="user-name-display">...</span>!</span>
+    <span>Привет, <span class="user-name" id="user-name-display">...</span>!</span>
     <button id="btn-logout" onclick="logout()">Выйти</button>
 </div>
 
-<!-- ── ВЫБОР УРОВНЯ ── -->
+<!-- ── LEVEL SELECTION ── -->
 <div id="level-screen">
     <h1>🇱🇻 Латышский тренажёр</h1>
-    <br>
-
     <div id="streak-box"></div>
     <div id="last-progress"></div>
-
-    <p class="level-intro" id="level-intro-text">Выберите уровень:</p>
-    <div id="loading-lessons" style="text-align:center;color:#aaa;font-size:15px;padding:10px;display:none">⏳ Загружаю фразы...</div>
-    <br>
-
+    <div id="loading-lessons">⏳ Загружаю фразы...</div>
     <button class="level-btn level-1" id="btn-level-1">
         🟢 Уровень 1 — Начинающий
-        <small id="sub-level-1">Урок 1 · 39 фраз</small>
+        <small id="sub-level-1">Загрузка...</small>
     </button>
     <button class="level-btn level-2" id="btn-level-2">
         🟡 Уровень 2 — Средний
-        <small id="sub-level-2">Скоро будет доступен</small>
+        <small id="sub-level-2">Скоро появится</small>
     </button>
     <button class="level-btn level-3" id="btn-level-3">
         🔴 Уровень 3 — Продвинутый
-        <small id="sub-level-3">Скоро будет доступен</small>
+        <small id="sub-level-3">Скоро появится</small>
     </button>
 </div>
 
-<!-- ── ТРЕНАЖЁР ── -->
+<!-- ── TRAINER ── -->
 <div id="trainer-screen">
-    <h1>🇱🇻 Тренажёр</h1>
-    <br>
-
     <div class="stats">
         <span class="stat-knew">✓ <span id="count-knew">0</span></span>
         <span class="stat-num"><span id="card-current">1</span> / <span id="card-total">0</span></span>
         <span class="stat-didnt"><span id="count-didnt">0</span> ✗</span>
     </div>
-
     <div class="progress-wrap">
         <div class="progress-fill" id="progress-fill" style="width:0%"></div>
     </div>
 
-    <!-- Карточка -->
-    <div class="card-scene" id="card-scene" onclick="flipCard()">
+    <div class="card-scene">
         <div class="card-inner" id="card-inner">
             <div class="card-front">
-                <div class="phrase" id="card-russian">—</div>
-                <div class="hint">нажмите на карточку</div>
+                <div class="card-hint" id="front-hint">Скажи по-латышски:</div>
+                <div class="card-phrase" id="card-russian">—</div>
+                <div class="card-flash" id="card-flash"></div>
             </div>
             <div class="card-back">
-                <div class="phrase" id="card-latvian">—</div>
+                <div class="card-hint">Правильно произнести:</div>
+                <div class="card-phrase" id="card-latvian">—</div>
             </div>
         </div>
     </div>
 
-    <p class="tap-hint" id="tap-hint">Вспомните перевод и нажмите на карточку</p>
+    <div id="voice-area">
+        <button id="mic-btn" onclick="onMicClick()">🎤</button>
+        <div id="voice-status">Нажмите на 🎤 чтобы начать</div>
+        <div id="repeat-area">
+            <div id="repeat-label">Повтори вслух 3 раза:</div>
+            <div class="repeat-dots">
+                <div class="rdot" id="dot-0"></div>
+                <div class="rdot" id="dot-1"></div>
+                <div class="rdot" id="dot-2"></div>
+            </div>
+        </div>
+    </div>
 
-    <div class="swipe-hint">
-        <span>← Не знал</span>
-        <span>Знал →</span>
+    <div id="manual-buttons" style="display:flex">
+        <button class="btn-didnt" onclick="manualAnswer(false)">✗ Не знал</button>
+        <button class="btn-knew"  onclick="manualAnswer(true)">✓ Знал!</button>
     </div>
-    <div class="answer-buttons" id="answer-buttons" style="display:flex">
-        <button class="btn-didnt" onclick="answer(false)">✗ Не знал</button>
-        <button class="btn-knew"  onclick="answer(true)">✓ Знал!</button>
-    </div>
+
+    <button id="btn-skip" onclick="skipCard()">→ Пропустить (не слышит микрофон)</button>
 </div>
 
-<!-- ── РЕЗУЛЬТАТЫ ── -->
+<!-- ── RESULTS ── -->
 <div id="result-screen">
-    <h1>🇱🇻 Результат</h1>
-    <br>
+    <h1>🇱🇻 Результат</h1><br>
     <div class="result-card">
-        <h2>Урок пройден!</h2>
+        <h2>Урок пройден! 🎉</h2>
         <div class="result-row">
             <div>
-                <div class="result-knew" id="result-knew">0</div>
-                <div class="result-label">Знал</div>
+                <div class="result-num r-knew"  id="result-knew">0</div>
+                <div class="result-label">С первого раза</div>
             </div>
             <div>
-                <div class="result-didnt" id="result-didnt">0</div>
-                <div class="result-label">Не знал</div>
+                <div class="result-num r-didnt" id="result-didnt">0</div>
+                <div class="result-label">Повторял</div>
             </div>
         </div>
         <div class="result-message" id="result-message"></div>
-        <div class="result-date" id="result-date"></div>
+        <div class="result-date"    id="result-date"></div>
     </div>
     <button class="btn-restart" onclick="restartTrainer()">🔄 Повторить все фразы</button>
-    <button class="btn-weak" id="btn-weak" onclick="repeatWeak()">⚡ Повторить слабые (<span id="weak-count">0</span> фраз)</button>
+    <button class="btn-weak" id="btn-weak" onclick="repeatWeak()">⚡ Повторить слабые (<span id="weak-count">0</span>)</button>
     <button class="btn-menu" onclick="goToMenu()">← В меню</button>
 </div>
 
 <script>
-// ── SUPABASE И СЕССИЯ ───────────────────────────────
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Проверяем сессию — если нет, отправляем на вход
+// ── SESSION CHECK ─────────────────────────────────────
 const sessionRaw = sessionStorage.getItem('lv_session');
 let currentUser = null;
 
@@ -436,338 +305,397 @@ if (!sessionRaw) {
     window.location.href = 'index.html';
 } else {
     currentUser = JSON.parse(sessionRaw);
-    // Проверяем срок доступа для подписчиков
-    if (currentUser.type === 'subscriber' && currentUser.accessExpires && Date.now() > currentUser.accessExpires) {
-        sessionStorage.removeItem('lv_session');
-        alert('Ваш бесплатный период закончился. Пожалуйста, войдите снова.');
-        window.location.href = 'index.html';
-    } else {
-        document.getElementById('user-name-display').textContent = currentUser.name;
-        setupLevelButtons(currentUser.maxLevel || 1);
-        loadLessonsFromSupabase();
-    }
+    document.getElementById('user-name-display').textContent = currentUser.name;
+    setupLevelButtons(currentUser.maxLevel || 1);
+    loadLessonsFromSupabase();
+    loadStreak();
+    loadLastProgress();
+}
+
+function logout() {
+    stopListening();
+    sessionStorage.removeItem('lv_session');
+    window.location.href = 'index.html';
 }
 
 function setupLevelButtons(maxLevel) {
-    const levels = [
-        { id: 1, hasContent: true },
-        { id: 2, hasContent: false },
-        { id: 3, hasContent: false }
-    ];
-
-    for (const lvl of levels) {
-        const btn = document.getElementById('btn-level-' + lvl.id);
-        const sub = document.getElementById('sub-level-' + lvl.id);
-
-        if (lvl.id <= maxLevel) {
-            // Уровень доступен
+    for (let lvl = 1; lvl <= 3; lvl++) {
+        const btn = document.getElementById('btn-level-' + lvl);
+        const sub = document.getElementById('sub-level-' + lvl);
+        if (lvl <= maxLevel) {
             btn.classList.remove('locked');
-            if (lvl.hasContent) {
-                btn.onclick = () => startTrainer(lvl.id);
-            } else {
-                btn.onclick = () => alert('Этот уровень скоро появится!\nПока тренируйтесь на Уровне 1.');
-                sub.textContent = 'Скоро появится';
-            }
+            btn.onclick = () => startTrainer(lvl);
         } else {
-            // Уровень недоступен на текущем тарифе
             btn.classList.add('locked');
-            btn.onclick = () => alert(
-                '🔒 Уровень ' + lvl.id + ' недоступен на вашем тарифе.\n\n' +
-                'Перейдите на более высокий тариф спонсорства канала\n' +
-                '«Латышский язык +16» для доступа к этому уровню.'
-            );
+            btn.onclick = () => alert('🔒 Уровень ' + lvl + ' недоступен на вашем тарифе.\n\nПерейдите на более высокий уровень спонсорства «Латышский язык +16».');
             sub.textContent = 'Недоступно на вашем тарифе';
         }
     }
 }
 
-function logout() {
-    sessionStorage.removeItem('lv_session');
-    window.location.href = 'index.html';
-}
-
-async function saveProgressToSupabase(level, knew, didnt) {
-    if (!currentUser) return;
-    const total = knew + didnt;
-    const percent = total > 0 ? Math.round((knew / total) * 100) : 0;
-
-    try {
-        // Сохраняем результат сессии
-        await db.from('progress').insert({
-            user_id: currentUser.userId,
-            user_name: currentUser.name,
-            level: level,
-            knew: knew,
-            didnt: didnt,
-            total: total,
-            percent: percent,
-            session_date: new Date().toISOString().split('T')[0]
-        });
-
-        // Обновляем last_access и счётчик сессий пользователя
-        const { data: userData } = await db
-            .from('users')
-            .select('sessions_count')
-            .eq('id', currentUser.userId)
-            .single();
-
-        const newCount = (userData ? userData.sessions_count : 0) + 1;
-        await db.from('users').update({
-            last_access: new Date().toISOString(),
-            sessions_count: newCount
-        }).eq('id', currentUser.userId);
-
-    } catch (err) {
-        // Тихая ошибка — прогресс сохранился локально
-        console.warn('Не удалось сохранить прогресс онлайн:', err);
-    }
-}
-
-// ── ДАННЫЕ (загружаются из Supabase) ────────────────
-let lessons = {}; // заполняется при старте
+// ── LESSONS ──────────────────────────────────────────
+let lessons = {};
 
 async function loadLessonsFromSupabase() {
     const maxLevel = currentUser ? (currentUser.maxLevel || 1) : 1;
     document.getElementById('loading-lessons').style.display = 'block';
-    document.getElementById('level-intro-text').style.display = 'none';
-
     try {
         const { data, error } = await db
-            .from('lessons')
-            .select('level, ru, lv')
-            .lte('level', maxLevel)
-            .order('id');
-
+            .from('lessons').select('level, ru, lv').lte('level', maxLevel).order('id');
         if (error) throw error;
-
         lessons = {};
         for (const row of data) {
             if (!lessons[row.level]) lessons[row.level] = [];
             lessons[row.level].push({ ru: row.ru, lv: row.lv });
         }
-
-        // Обновляем счётчики фраз на кнопках уровней
         for (let lvl = 1; lvl <= 3; lvl++) {
             const sub = document.getElementById('sub-level-' + lvl);
             if (sub && lessons[lvl] && lessons[lvl].length > 0) {
                 sub.textContent = lessons[lvl].length + ' фраз';
             }
         }
-    } catch (err) {
-        console.warn('Не удалось загрузить уроки:', err);
+    } catch(err) {
+        console.warn('Ошибка загрузки уроков:', err);
     } finally {
         document.getElementById('loading-lessons').style.display = 'none';
-        document.getElementById('level-intro-text').style.display = 'block';
     }
 }
 
-// ── СОСТОЯНИЕ ──────────────────────────────────────
+// ── SPEECH RECOGNITION ───────────────────────────────
+const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition   = null;
+let speechRunning = false;
+let speechInited  = false;
+
+function initSpeech() {
+    if (speechInited) return;
+    speechInited = true;
+
+    if (!SpeechAPI) {
+        // No speech API — show manual buttons, hide voice
+        document.getElementById('voice-area').style.display = 'none';
+        document.getElementById('manual-buttons').style.display = 'flex';
+        return;
+    }
+
+    recognition = new SpeechAPI();
+    recognition.lang = 'lv-LV';
+    recognition.continuous    = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 5;
+
+    recognition.onstart  = () => { speechRunning = true; };
+
+    recognition.onresult = (e) => {
+        speechRunning = false;
+        const transcripts = Array.from(e.results[0]).map(r => r.transcript.trim());
+        handleSpeechResult(transcripts);
+    };
+
+    recognition.onerror = (e) => {
+        speechRunning = false;
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            // Mic permission denied
+            document.getElementById('voice-area').style.display = 'none';
+            document.getElementById('manual-buttons').style.display = 'flex';
+            recognition = null;
+            return;
+        }
+        // no-speech / aborted / network — just restart if still in active state
+        if (S === ST.LISTENING || S === ST.REPEATING) {
+            setTimeout(startListening, 400);
+        }
+    };
+
+    recognition.onend = () => {
+        speechRunning = false;
+        if (S === ST.LISTENING || S === ST.REPEATING) {
+            setTimeout(startListening, 200);
+        }
+    };
+}
+
+function startListening() {
+    if (!recognition || speechRunning) return;
+    try {
+        recognition.start();
+        speechRunning = true;
+    } catch(e) { /* already started */ }
+}
+
+function stopListening() {
+    if (!recognition) return;
+    speechRunning = false;
+    try { recognition.abort(); } catch(e) {}
+}
+
+// ── SPEECH MATCHING ───────────────────────────────────
+function normLv(str) {
+    return str.toLowerCase()
+        .replace(/ā/g,'a').replace(/ē/g,'e').replace(/ī/g,'i').replace(/ū/g,'u')
+        .replace(/ģ/g,'g').replace(/ķ/g,'k').replace(/ļ/g,'l').replace(/ņ/g,'n')
+        .replace(/ŗ/g,'r').replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c')
+        .replace(/[^a-z\s]/g,'').replace(/\s+/g,' ').trim();
+}
+
+function wordClose(a, b) {
+    if (a === b) return true;
+    const maxD = Math.min(2, Math.floor(Math.max(a.length, b.length) / 4));
+    if (Math.abs(a.length - b.length) > maxD + 1) return false;
+    // Simple character diff count
+    let d = Math.abs(a.length - b.length);
+    const minL = Math.min(a.length, b.length);
+    for (let i = 0; i < minL; i++) { if (a[i] !== b[i]) d++; }
+    return d <= maxD;
+}
+
+function isMatch(transcript, expected, thresh = 0.72) {
+    const t = normLv(transcript);
+    const e = normLv(expected);
+    if (t === e) return true;
+    if (t.includes(e) || e.includes(t)) return true;
+    const eW = e.split(' ');
+    const tW = t.split(' ');
+    const matched = eW.filter(ew => tW.some(tw => wordClose(tw, ew))).length;
+    return matched / eW.length >= thresh;
+}
+
+// ── STATE MACHINE ─────────────────────────────────────
+const ST = { IDLE:'idle', LISTENING:'listening', CORRECT:'correct', WRONG:'wrong', REPEATING:'repeating' };
+let S = ST.IDLE;
+let repeatCount = 0;
+let skipTimer   = null;
+
+function setState(newS) {
+    S = newS;
+    renderVoiceUI();
+}
+
+function renderVoiceUI() {
+    const btn      = document.getElementById('mic-btn');
+    const status   = document.getElementById('voice-status');
+    const repArea  = document.getElementById('repeat-area');
+    const skipBtn  = document.getElementById('btn-skip');
+
+    // Clear skip timer
+    clearTimeout(skipTimer);
+    skipBtn.style.display = 'none';
+
+    btn.className = 's-' + S;
+
+    switch(S) {
+        case ST.IDLE:
+            btn.textContent  = '🎤';
+            status.textContent = 'Нажмите на 🎤 чтобы начать';
+            repArea.style.display = 'none';
+            break;
+        case ST.LISTENING:
+            btn.textContent  = '🎤';
+            status.textContent = '🎤 Говори по-латышски...';
+            repArea.style.display = 'none';
+            // Show skip button after 8s
+            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, 8000);
+            break;
+        case ST.CORRECT:
+            btn.textContent  = '✓';
+            status.textContent = '✅ Правильно!';
+            repArea.style.display = 'none';
+            break;
+        case ST.WRONG:
+            btn.textContent  = '✗';
+            status.textContent = '❌ Сейчас увидишь как правильно...';
+            repArea.style.display = 'none';
+            break;
+        case ST.REPEATING:
+            btn.textContent  = '🎤';
+            status.textContent = '🎤 Повторяй вслух:';
+            repArea.style.display = 'block';
+            renderDots();
+            // Show skip button after 12s
+            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, 12000);
+            break;
+    }
+}
+
+function renderDots() {
+    for (let i = 0; i < 3; i++) {
+        const d = document.getElementById('dot-' + i);
+        if (d) d.className = 'rdot' + (i < repeatCount ? ' done' : '');
+    }
+}
+
+function onMicClick() {
+    if (S === ST.IDLE) {
+        setState(ST.LISTENING);
+        startListening();
+    } else if (S === ST.LISTENING) {
+        // Re-tap while listening = restart recognition
+        stopListening();
+        setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
+    }
+}
+
+function handleSpeechResult(transcripts) {
+    const expected = currentCards[currentIndex].lv;
+
+    if (S === ST.LISTENING) {
+        const ok = transcripts.some(t => isMatch(t, expected));
+        if (ok) {
+            stopListening();
+            countKnew++;
+            updateStats();
+            flashCard('on-green');
+            setState(ST.CORRECT);
+            setTimeout(nextCard, 1100);
+        } else {
+            stopListening();
+            countDidnt++;
+            weakCards.push(currentCards[currentIndex]);
+            updateStats();
+            setState(ST.WRONG);
+            // Flip card after brief pause
+            setTimeout(() => {
+                document.getElementById('card-inner').classList.add('flipped');
+                repeatCount = 0;
+                setState(ST.REPEATING);
+                setTimeout(startListening, 900);
+            }, 700);
+        }
+    } else if (S === ST.REPEATING) {
+        const ok = transcripts.some(t => isMatch(t, expected, 0.58));
+        if (ok) {
+            repeatCount++;
+            renderDots();
+            if (repeatCount >= 3) {
+                stopListening();
+                setState(ST.CORRECT);
+                setTimeout(nextCard, 700);
+            }
+            // Continue listening for next rep (onend will restart)
+        }
+    }
+}
+
+function flashCard(cls) {
+    const el = document.getElementById('card-flash');
+    el.className = 'card-flash ' + cls;
+    setTimeout(() => { el.className = 'card-flash'; }, 700);
+}
+
+function nextCard() {
+    currentIndex++;
+    repeatCount = 0;
+    document.getElementById('card-inner').classList.remove('flipped');
+
+    if (currentIndex >= currentCards.length) {
+        stopListening();
+        setState(ST.IDLE);
+        showResult();
+        return;
+    }
+
+    showCard();
+    setState(ST.LISTENING);
+    setTimeout(startListening, 800);
+}
+
+function skipCard() {
+    // Count as not-knew, move on
+    if (S === ST.LISTENING || S === ST.REPEATING) {
+        if (S === ST.LISTENING) {
+            countDidnt++;
+            weakCards.push(currentCards[currentIndex]);
+            updateStats();
+        }
+        stopListening();
+        setState(ST.IDLE);
+        setTimeout(nextCard, 300);
+    }
+}
+
+// ── TRAINER ───────────────────────────────────────────
 let currentCards = [];
 let currentIndex = 0;
-let countKnew = 0;
-let countDidnt = 0;
+let countKnew    = 0;
+let countDidnt   = 0;
 let currentLevel = 1;
-let isFlipped = false;
-let weakCards = []; // карточки которые не знал
+let weakCards    = [];
 
-// ── СЧЁТЧИК ДНЕЙ ПОДРЯД ────────────────────────────
-function loadStreak() {
-    const data = JSON.parse(localStorage.getItem('lv_streak') || '{"count":0,"lastDate":""}');
-    if (data.count > 0) {
-        const box = document.getElementById('streak-box');
-        const emoji = data.count >= 7 ? '🔥' : '⚡';
-        box.innerHTML = `${emoji} <span>${data.count}</span> ${data.count === 1 ? 'день' : data.count < 5 ? 'дня' : 'дней'} подряд!`;
-        box.style.display = 'block';
-    }
-}
-
-function updateStreak() {
-    const today = new Date().toDateString();
-    const data = JSON.parse(localStorage.getItem('lv_streak') || '{"count":0,"lastDate":""}');
-    if (data.lastDate === today) return; // уже считали сегодня
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const newCount = data.lastDate === yesterday.toDateString() ? data.count + 1 : 1;
-    localStorage.setItem('lv_streak', JSON.stringify({ count: newCount, lastDate: today }));
-}
-
-// ── ПРОГРЕСС (localStorage) ─────────────────────────
-function saveProgress(level, knew, didnt) {
-    const data = {
-        level,
-        knew,
-        didnt,
-        total: knew + didnt,
-        date: new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }),
-        ts: Date.now()
-    };
-    localStorage.setItem("lv_progress_" + level, JSON.stringify(data));
-}
-
-function loadLastProgress() {
-    const box = document.getElementById("last-progress");
-    const data = JSON.parse(localStorage.getItem("lv_progress_1") || "null");
-    if (!data) return;
-
-    const percent = Math.round((data.knew / data.total) * 100);
-    box.innerHTML =
-        "<strong>Последний результат (" + data.date + "):</strong><br>" +
-        "Знал: <span class='lp-knew'>" + data.knew + "</span> &nbsp;|&nbsp; " +
-        "Не знал: <span class='lp-didnt'>" + data.didnt + "</span> &nbsp;|&nbsp; " +
-        percent + "%";
-    box.style.display = "block";
-}
-
-// ── УТИЛИТЫ ────────────────────────────────────────
-function shuffle(arr) {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-}
-
-
-// ── СВАЙП ──────────────────────────────────────────
-let touchStartX = 0;
-let touchStartY = 0;
-
-function initSwipe() {
-    const scene = document.getElementById('card-scene');
-    const inner = document.getElementById('card-inner');
-
-    scene.addEventListener('touchstart', (e) => {
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-    }, { passive: true });
-
-    scene.addEventListener('touchmove', (e) => {
-        if (!isFlipped) return;
-        const dx = e.touches[0].clientX - touchStartX;
-        const dy = e.touches[0].clientY - touchStartY;
-        if (Math.abs(dx) < Math.abs(dy)) return;
-        if (dx > 20)       inner.classList.add('swiping-right');
-        else if (dx < -20) inner.classList.add('swiping-left');
-        else { inner.classList.remove('swiping-right'); inner.classList.remove('swiping-left'); }
-    }, { passive: true });
-
-    scene.addEventListener('touchend', (e) => {
-        if (!isFlipped) return;
-        inner.classList.remove('swiping-right');
-        inner.classList.remove('swiping-left');
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        const dy = e.changedTouches[0].clientY - touchStartY;
-        if (Math.abs(dx) < Math.abs(dy) || Math.abs(dx) < 60) return;
-        answer(dx > 0); // вправо = знал, влево = не знал
-    }, { passive: true });
-}
-
-// ── ПОВТОР СЛАБЫХ ──────────────────────────────────
-function repeatWeak() {
-    currentCards = shuffle(weakCards);
-    currentIndex = 0;
-    countKnew = 0;
-    countDidnt = 0;
-    weakCards = [];
-    isFlipped = false;
-
-    document.getElementById('result-screen').style.display  = 'none';
-    document.getElementById('trainer-screen').style.display = 'block';
-    document.getElementById('card-total').textContent = currentCards.length;
-    showCard();
-}
-
-// ── ЛОГИКА ТРЕНАЖЁРА ───────────────────────────────
 function startTrainer(level) {
+    if (!lessons[level] || lessons[level].length === 0) {
+        alert('Фразы для этого уровня ещё не добавлены.\nЗайдите в админку и добавьте фразы.');
+        return;
+    }
     currentLevel = level;
     currentCards = shuffle(lessons[level]);
-    currentIndex = 0;
-    countKnew = 0;
-    countDidnt = 0;
-    weakCards = [];
-    isFlipped = false;
+    currentIndex = 0; countKnew = 0; countDidnt = 0; weakCards = [];
 
-    document.getElementById("level-screen").style.display  = "none";
-    document.getElementById("result-screen").style.display = "none";
-    document.getElementById("trainer-screen").style.display = "block";
+    document.getElementById('level-screen').style.display  = 'none';
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('trainer-screen').style.display = 'block';
+    document.getElementById('card-total').textContent = currentCards.length;
 
-    document.getElementById("card-total").textContent = currentCards.length;
+    initSpeech();
+
+    // Hide manual buttons if speech available, show if not
+    if (recognition) {
+        document.getElementById('manual-buttons').style.display = 'none';
+        document.getElementById('voice-area').style.display = 'block';
+    }
+
     showCard();
+    setState(ST.LISTENING);
+    setTimeout(startListening, 1000);
 }
 
 function showCard() {
     const card = currentCards[currentIndex];
-
-    // Сброс переворота
-    isFlipped = false;
-    const scene = document.getElementById("card-scene");
-    scene.classList.remove("flipped");
-
-    document.getElementById("card-russian").textContent = card.ru;
-    document.getElementById("card-latvian").textContent  = card.lv;
-
-    document.getElementById("answer-buttons").style.display = "none";
-    document.getElementById("tap-hint").textContent = "Вспомните перевод и нажмите на карточку";
-
-    document.getElementById("card-current").textContent = currentIndex + 1;
-    document.getElementById("count-knew").textContent   = countKnew;
-    document.getElementById("count-didnt").textContent  = countDidnt;
-
-    const pct = (currentIndex / currentCards.length) * 100;
-    document.getElementById("progress-fill").style.width = pct + "%";
+    document.getElementById('card-russian').textContent = card.ru;
+    document.getElementById('card-latvian').textContent = card.lv;
+    document.getElementById('card-inner').classList.remove('flipped');
+    document.getElementById('card-current').textContent = currentIndex + 1;
+    document.getElementById('progress-fill').style.width = (currentIndex / currentCards.length * 100) + '%';
+    updateStats();
 }
 
-function flipCard() {
-    if (isFlipped) return; // уже перевёрнута
-    isFlipped = true;
-    document.getElementById("card-scene").classList.add("flipped");
-    document.getElementById("tap-hint").textContent = "Знали этот перевод?";
-    document.getElementById("answer-buttons").style.display = "flex";
+function updateStats() {
+    document.getElementById('count-knew').textContent  = countKnew;
+    document.getElementById('count-didnt').textContent = countDidnt;
 }
 
-function answer(knew) {
-    if (knew) {
-        countKnew++;
-    } else {
-        countDidnt++;
-        weakCards.push(currentCards[currentIndex]);
-    }
-    currentIndex++;
-    if (currentIndex >= currentCards.length) {
-        showResult();
-    } else {
+// Manual fallback (no mic)
+function manualAnswer(knew) {
+    if (knew) { countKnew++; flashCard('on-green'); }
+    else { countDidnt++; weakCards.push(currentCards[currentIndex]); flashCard('on-red'); }
+    updateStats();
+    setTimeout(() => {
+        currentIndex++;
+        if (currentIndex >= currentCards.length) { showResult(); return; }
         showCard();
-    }
+    }, 500);
 }
 
-// ── РЕЗУЛЬТАТЫ ─────────────────────────────────────
+// ── RESULTS ───────────────────────────────────────────
 function showResult() {
     saveProgress(currentLevel, countKnew, countDidnt);
     saveProgressToSupabase(currentLevel, countKnew, countDidnt);
     updateStreak();
 
-    document.getElementById("trainer-screen").style.display = "none";
-    document.getElementById("result-screen").style.display  = "block";
-
-    document.getElementById("result-knew").textContent  = countKnew;
-    document.getElementById("result-didnt").textContent = countDidnt;
+    document.getElementById('trainer-screen').style.display = 'none';
+    document.getElementById('result-screen').style.display  = 'block';
+    document.getElementById('result-knew').textContent  = countKnew;
+    document.getElementById('result-didnt').textContent = countDidnt;
 
     const pct = Math.round((countKnew / currentCards.length) * 100);
-    let msg = "";
-    if (pct === 100)    msg = "Отлично! Все фразы знаете! 🏆";
-    else if (pct >= 80) msg = "Очень хорошо! Почти всё знаете! 👍";
-    else if (pct >= 60) msg = "Хорошо! Продолжайте практиковаться! 💪";
-    else if (pct >= 40) msg = "Неплохо! Повторите ещё раз! 📚";
-    else                msg = "Не страшно! Повторение — мать учения! 🔄";
+    document.getElementById('result-message').textContent =
+        pct === 100 ? '🏆 Все фразы произнесены с первого раза!' :
+        pct >= 80   ? '👍 Отлично! Ещё чуть-чуть и идеал!' :
+        pct >= 60   ? '💪 Хорошо! Продолжай практиковаться!' :
+        pct >= 40   ? '📚 Повтори ещё раз — всё получится!' :
+                      '🔄 Повторение — мать учения!';
+    document.getElementById('result-date').textContent =
+        new Date().toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' });
 
-    document.getElementById("result-message").textContent = msg;
-    document.getElementById("result-date").textContent =
-        new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
-
-    document.getElementById("progress-fill").style.width = "100%";
-
-    // Кнопка повтора слабых
     const btnWeak = document.getElementById('btn-weak');
     if (weakCards.length > 0) {
         document.getElementById('weak-count').textContent = weakCards.length;
@@ -779,18 +707,88 @@ function showResult() {
 
 function restartTrainer() { startTrainer(currentLevel); }
 
+function repeatWeak() {
+    currentCards = shuffle(weakCards);
+    currentIndex = 0; countKnew = 0; countDidnt = 0; weakCards = [];
+    document.getElementById('result-screen').style.display  = 'none';
+    document.getElementById('trainer-screen').style.display = 'block';
+    document.getElementById('card-total').textContent = currentCards.length;
+    showCard();
+    setState(ST.LISTENING);
+    setTimeout(startListening, 800);
+}
+
 function goToMenu() {
-    document.getElementById("result-screen").style.display  = "none";
-    document.getElementById("trainer-screen").style.display = "none";
-    document.getElementById("level-screen").style.display   = "block";
+    stopListening();
+    setState(ST.IDLE);
+    document.getElementById('result-screen').style.display  = 'none';
+    document.getElementById('trainer-screen').style.display = 'none';
+    document.getElementById('level-screen').style.display   = 'block';
     loadLastProgress();
     loadStreak();
 }
 
-// ── СТАРТ ──────────────────────────────────────────
-loadLastProgress();
-loadStreak();
-initSwipe();
+// ── STREAK & PROGRESS ─────────────────────────────────
+function loadStreak() {
+    const d = JSON.parse(localStorage.getItem('lv_streak') || '{"count":0,"lastDate":""}');
+    if (d.count > 0) {
+        const b = document.getElementById('streak-box');
+        b.innerHTML = `${d.count >= 7 ? '🔥' : '⚡'} ${d.count} ${d.count===1?'день':d.count<5?'дня':'дней'} подряд!`;
+        b.style.display = 'block';
+    }
+}
+function updateStreak() {
+    const today = new Date().toDateString();
+    const d = JSON.parse(localStorage.getItem('lv_streak') || '{"count":0,"lastDate":""}');
+    if (d.lastDate === today) return;
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    localStorage.setItem('lv_streak', JSON.stringify({ count: d.lastDate === y.toDateString() ? d.count + 1 : 1, lastDate: today }));
+}
+function saveProgress(level, knew, didnt) {
+    localStorage.setItem('lv_progress_' + level, JSON.stringify({
+        level, knew, didnt, total: knew + didnt,
+        date: new Date().toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'}),
+        ts: Date.now()
+    }));
+}
+function loadLastProgress() {
+    const box = document.getElementById('last-progress');
+    const d = JSON.parse(localStorage.getItem('lv_progress_1') || 'null');
+    if (!d || !d.total) return;
+    const pct = Math.round((d.knew / d.total) * 100);
+    box.innerHTML = `<strong>Последний результат (${d.date}):</strong><br>
+        С первого раза: <span class="lp-knew">${d.knew}</span> &nbsp;|&nbsp;
+        Повторял: <span class="lp-didnt">${d.didnt}</span> &nbsp;|&nbsp; ${pct}%`;
+    box.style.display = 'block';
+}
+
+// ── SUPABASE PROGRESS ─────────────────────────────────
+async function saveProgressToSupabase(level, knew, didnt) {
+    if (!currentUser) return;
+    try {
+        await db.from('progress').insert({
+            user_id: currentUser.userId, user_name: currentUser.name,
+            level, knew, didnt, total: knew + didnt,
+            percent: (knew + didnt) > 0 ? Math.round((knew / (knew + didnt)) * 100) : 0,
+            session_date: new Date().toISOString().split('T')[0]
+        });
+        const { data: ud } = await db.from('users').select('sessions_count').eq('id', currentUser.userId).single();
+        await db.from('users').update({
+            last_access: new Date().toISOString(),
+            sessions_count: ((ud && ud.sessions_count) || 0) + 1
+        }).eq('id', currentUser.userId);
+    } catch(e) { console.warn('Прогресс не сохранился онлайн:', e); }
+}
+
+// ── UTILS ─────────────────────────────────────────────
+function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 </script>
 </body>
 </html>
