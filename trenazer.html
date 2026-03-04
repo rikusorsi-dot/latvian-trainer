@@ -138,6 +138,25 @@
             #btn-skip { font-size: 14px; padding: 14px; }
         }
 
+        /* ── MOBILE START OVERLAY ── */
+        #mobile-start-overlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 999;
+            background: linear-gradient(135deg, #1a3a6e 0%, #9b2335 100%);
+            flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 32px; color: white;
+        }
+        #mobile-start-overlay h2 { font-size: 26px; margin-bottom: 16px; }
+        #mobile-start-overlay p  { font-size: 16px; opacity: 0.85; margin-bottom: 32px; line-height: 1.7; }
+        #btn-mobile-start {
+            width: 160px; height: 160px; border-radius: 50%;
+            background: white; border: none; font-size: 56px;
+            cursor: pointer; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        #btn-mobile-start:active { transform: scale(0.93); }
+
         /* Mic state classes */
         #mic-btn.s-listening {
             background: #3498db; color: white;
@@ -282,6 +301,13 @@
     </a>
     <button class="btn-restart" onclick="restartOffer()">🔄 Повторить Блок 2</button>
     <button class="btn-menu" onclick="goToMenu()">← В меню</button>
+</div>
+
+<!-- ── MOBILE START OVERLAY ── -->
+<div id="mobile-start-overlay">
+    <h2>🇱🇻 Латышский тренажёр</h2>
+    <p>Нажми один раз — разреши микрофон.<br>Дальше всё работает автоматически.</p>
+    <button id="btn-mobile-start" onclick="mobileTapStart()">🎤</button>
 </div>
 
 <!-- ── TRAINER ── -->
@@ -441,6 +467,7 @@ async function loadLessonsFromSupabase() {
 // ── DEVICE DETECTION ─────────────────────────────────
 const isIOS    = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 const isMobile = isIOS || /Android|webOS|BlackBerry/i.test(navigator.userAgent);
+let mobileUnlocked = false; // становится true после первого тапа
 
 // ── SPEECH RECOGNITION ───────────────────────────────
 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -491,25 +518,16 @@ function initSpeech() {
             recognition.lang = '';
         }
         // На мобилке не делаем авто-рестарт при ошибке — ждём тапа
-        if (!isMobile && (S === ST.LISTENING || S === ST.REPEATING)) {
+        if (S === ST.LISTENING || S === ST.REPEATING) {
             scheduleRestart(600);
-        } else if (isMobile) {
-            // Показываем статус "Нажми снова"
-            document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон';
-            speechRunning = false;
         }
     };
 
     recognition.onend = () => {
         speechRunning = false;
         if (S !== ST.LISTENING && S !== ST.REPEATING) return;
-        if (isMobile) {
-            // На мобилке — ждём явного тапа, не перезапускаем автоматически
-            document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон';
-            return;
-        }
-        // На десктопе — перезапускаем с задержкой
-        scheduleRestart(250);
+        // После первого тапа (разрешение получено) — автомат везде
+        scheduleRestart(isMobile ? 400 : 250);
     };
 }
 
@@ -600,9 +618,9 @@ function renderVoiceUI() {
             break;
         case ST.LISTENING:
             btn.textContent  = '🎤';
-            status.textContent = isMobile ? '🎤 Нажми на микрофон и говори' : '🎤 Говори по-латышски...';
+            status.textContent = '🎤 Говори по-латышски...';
             repArea.style.display = 'none';
-            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 5000 : 8000);
+            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 6000 : 8000);
             break;
         case ST.CORRECT:
             btn.textContent  = '✓';
@@ -616,7 +634,7 @@ function renderVoiceUI() {
             break;
         case ST.REPEATING:
             btn.textContent  = '🎤';
-            status.textContent = isMobile ? '🎤 Нажми и повторяй вслух:' : '🎤 Повторяй вслух:';
+            status.textContent = '🎤 Повторяй вслух:';
             repArea.style.display = 'block';
             renderDots();
             skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 8000 : 12000);
@@ -636,17 +654,9 @@ function onMicClick() {
         setState(ST.LISTENING);
         startListening();
     } else if (S === ST.LISTENING) {
-        if (isMobile) {
-            // На мобилке повторный тап = попробовать снова
-            stopListening();
-            setTimeout(() => { startListening(); }, 300);
-        } else {
-            stopListening();
-            setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
-        }
-    } else if (S === ST.REPEATING && isMobile) {
-        // На мобилке в режиме повтора — тап запускает запись
-        startListening();
+        // Повторный тап = перезапустить запись
+        stopListening();
+        setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
     }
 }
 
@@ -760,12 +770,19 @@ function startTrainer(level) {
 
     showCard();
     setState(ST.LISTENING);
-    if (isMobile) {
-        // На мобилке — ждём явного тапа, не автостартуем
-        document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон и говори';
+    if (isMobile && !mobileUnlocked) {
+        // Показываем overlay — один тап для разрешения микрофона
+        document.getElementById('mobile-start-overlay').style.display = 'flex';
     } else {
-        setTimeout(startListening, 1000);
+        setTimeout(startListening, 800);
     }
+}
+
+function mobileTapStart() {
+    mobileUnlocked = true;
+    document.getElementById('mobile-start-overlay').style.display = 'none';
+    // Этот вызов — user gesture → браузер разрешит микрофон
+    startListening();
 }
 
 function showCard() {
@@ -979,6 +996,7 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
 
 
 
