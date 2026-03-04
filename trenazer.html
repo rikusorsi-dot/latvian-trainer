@@ -2,7 +2,11 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Латышский">
+    <meta name="theme-color" content="#1a3a6e">
     <title>Латышский тренажёр</title>
     <script src="supabase-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -124,8 +128,15 @@
             margin: 0 auto 12px; transition: background 0.25s, transform 0.1s;
             box-shadow: 0 4px 14px rgba(0,0,0,0.15);
             background: #ecf0f1; color: #888;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
         #mic-btn:active { transform: scale(0.94); }
+        @media (max-width: 480px) {
+            #mic-btn { width: 100px; height: 100px; font-size: 42px; }
+            .card-phrase { font-size: 24px; }
+            #btn-skip { font-size: 14px; padding: 14px; }
+        }
 
         /* Mic state classes */
         #mic-btn.s-listening {
@@ -427,30 +438,38 @@ async function loadLessonsFromSupabase() {
     }
 }
 
+// ── DEVICE DETECTION ─────────────────────────────────
+const isIOS    = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isMobile = isIOS || /Android|webOS|BlackBerry/i.test(navigator.userAgent);
+
 // ── SPEECH RECOGNITION ───────────────────────────────
 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition   = null;
-let speechRunning = false;
-let speechInited  = false;
+let recognition    = null;
+let speechRunning  = false;
+let speechInited   = false;
+let restartCooldown = false; // защита от быстрого loop на iOS
 
 function initSpeech() {
     if (speechInited) return;
     speechInited = true;
 
     if (!SpeechAPI) {
-        // No speech API — show manual buttons, hide voice
         document.getElementById('voice-area').style.display = 'none';
         document.getElementById('manual-buttons').style.display = 'flex';
         return;
     }
 
     recognition = new SpeechAPI();
+    // lv-LV на iOS может не поддерживаться — пробуем, при ошибке уберём язык
     recognition.lang = 'lv-LV';
-    recognition.continuous    = false;
+    recognition.continuous     = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
 
-    recognition.onstart  = () => { speechRunning = true; };
+    recognition.onstart = () => {
+        speechRunning  = true;
+        restartCooldown = false;
+    };
 
     recognition.onresult = (e) => {
         speechRunning = false;
@@ -461,24 +480,47 @@ function initSpeech() {
     recognition.onerror = (e) => {
         speechRunning = false;
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            // Mic permission denied
             document.getElementById('voice-area').style.display = 'none';
             document.getElementById('manual-buttons').style.display = 'flex';
             recognition = null;
             return;
         }
-        // no-speech / aborted / network — just restart if still in active state
-        if (S === ST.LISTENING || S === ST.REPEATING) {
-            setTimeout(startListening, 400);
+        if (e.error === 'language-not-supported') {
+            // Убираем язык и пробуем снова
+            recognition.lang = '';
+        }
+        // На мобилке не делаем авто-рестарт при ошибке — ждём тапа
+        if (!isMobile && (S === ST.LISTENING || S === ST.REPEATING)) {
+            scheduleRestart(600);
+        } else if (isMobile) {
+            // Показываем статус "Нажми снова"
+            document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон';
+            speechRunning = false;
         }
     };
 
     recognition.onend = () => {
         speechRunning = false;
-        if (S === ST.LISTENING || S === ST.REPEATING) {
-            setTimeout(startListening, 200);
+        if (S !== ST.LISTENING && S !== ST.REPEATING) return;
+        if (isMobile) {
+            // На мобилке — ждём явного тапа, не перезапускаем автоматически
+            document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон';
+            return;
         }
+        // На десктопе — перезапускаем с задержкой
+        scheduleRestart(250);
     };
+}
+
+let restartTimer = null;
+function scheduleRestart(delay) {
+    if (restartCooldown) return;
+    restartCooldown = true;
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(() => {
+        restartCooldown = false;
+        if (S === ST.LISTENING || S === ST.REPEATING) startListening();
+    }, delay);
 }
 
 function startListening() {
@@ -486,7 +528,7 @@ function startListening() {
     try {
         recognition.start();
         speechRunning = true;
-    } catch(e) { /* already started */ }
+    } catch(e) { speechRunning = false; }
 }
 
 function stopListening() {
@@ -557,10 +599,9 @@ function renderVoiceUI() {
             break;
         case ST.LISTENING:
             btn.textContent  = '🎤';
-            status.textContent = '🎤 Говори по-латышски...';
+            status.textContent = isMobile ? '🎤 Нажми на микрофон и говори' : '🎤 Говори по-латышски...';
             repArea.style.display = 'none';
-            // Show skip button after 8s
-            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, 8000);
+            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 5000 : 8000);
             break;
         case ST.CORRECT:
             btn.textContent  = '✓';
@@ -574,11 +615,10 @@ function renderVoiceUI() {
             break;
         case ST.REPEATING:
             btn.textContent  = '🎤';
-            status.textContent = '🎤 Повторяй вслух:';
+            status.textContent = isMobile ? '🎤 Нажми и повторяй вслух:' : '🎤 Повторяй вслух:';
             repArea.style.display = 'block';
             renderDots();
-            // Show skip button after 12s
-            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, 12000);
+            skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 8000 : 12000);
             break;
     }
 }
@@ -595,9 +635,17 @@ function onMicClick() {
         setState(ST.LISTENING);
         startListening();
     } else if (S === ST.LISTENING) {
-        // Re-tap while listening = restart recognition
-        stopListening();
-        setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
+        if (isMobile) {
+            // На мобилке повторный тап = попробовать снова
+            stopListening();
+            setTimeout(() => { startListening(); }, 300);
+        } else {
+            stopListening();
+            setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
+        }
+    } else if (S === ST.REPEATING && isMobile) {
+        // На мобилке в режиме повтора — тап запускает запись
+        startListening();
     }
 }
 
@@ -711,7 +759,12 @@ function startTrainer(level) {
 
     showCard();
     setState(ST.LISTENING);
-    setTimeout(startListening, 1000);
+    if (isMobile) {
+        // На мобилке — ждём явного тапа, не автостартуем
+        document.getElementById('voice-status').textContent = '🎤 Нажми на микрофон и говори';
+    } else {
+        setTimeout(startListening, 1000);
+    }
 }
 
 function showCard() {
@@ -925,5 +978,6 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
 
 
