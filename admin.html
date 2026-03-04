@@ -469,13 +469,8 @@
             <button class="level-tab" onclick="switchLessonLevel(3, this)">🔴 Уровень 3</button>
         </div>
 
-        <!-- Блоки (только для Уровня 1) -->
-        <div class="level-tabs" id="block-tabs" style="margin-top:8px">
-            <button class="level-tab active" onclick="switchBlock(1, this)">📦 Блок 1</button>
-            <button class="level-tab" onclick="switchBlock(2, this)">📦 Блок 2</button>
-            <button class="level-tab" onclick="switchBlock(3, this)">📦 Блок 3</button>
-            <button class="level-tab" onclick="switchBlock(4, this)">📦 Блок 4</button>
-        </div>
+        <!-- Блоки — генерируются динамически -->
+        <div id="block-tabs" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;"></div>
 
         <!-- Одна фраза -->
         <div class="add-phrase-form">
@@ -574,7 +569,26 @@ function adminLogout() {
 
 // ── ЗАГРУЗКА ДАННЫХ ─────────────────────────────────
 async function loadData() {
-    await Promise.all([loadCounters(), loadUsers(), loadLessonsAdmin(1), loadFeedback()]);
+    initBlockTabs(1);
+    await Promise.all([loadCounters(), loadUsers(), loadLessonsAdmin(1, 1), loadFeedback()]);
+}
+
+function initBlockTabs(level) {
+    const blockTabs = document.getElementById('block-tabs');
+    blockTabs.innerHTML = '';
+    const blockCount = level === 1 ? 4 : level === 2 ? 30 : 0;
+    if (blockCount > 0) {
+        blockTabs.style.display = 'flex';
+        for (let i = 1; i <= blockCount; i++) {
+            const b = document.createElement('button');
+            b.className = 'level-tab' + (i === 1 ? ' active' : '');
+            b.textContent = 'Блок ' + i;
+            b.onclick = (function(n, el) { return function() { switchBlock(n, el); }; })(i, b);
+            blockTabs.appendChild(b);
+        }
+    } else {
+        blockTabs.style.display = 'none';
+    }
 }
 
 // ── УПРАВЛЕНИЕ УРОКАМИ ───────────────────────────────
@@ -586,12 +600,8 @@ function switchLessonLevel(level, btn) {
     currentLessonBlock = 1;
     document.querySelectorAll('.level-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    // Показываем блоки только для уровня 1
-    const blockTabs = document.getElementById('block-tabs');
-    blockTabs.style.display = level === 1 ? 'flex' : 'none';
-    // Сброс активного блока
-    blockTabs.querySelectorAll('.level-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
-    loadLessonsAdmin(level, level === 1 ? 1 : null);
+    initBlockTabs(level);
+    loadLessonsAdmin(level, 1);
 }
 
 function switchBlock(block, btn) {
@@ -651,7 +661,7 @@ async function addLesson() {
 
     const { error } = await db.from('lessons').insert({
         level: currentLessonLevel,
-        block: currentLessonLevel === 1 ? currentLessonBlock : 1,
+        block: currentLessonBlock,
         ru: ru,
         lv: lv
     });
@@ -664,7 +674,7 @@ async function addLesson() {
     ruInput.value = '';
     lvInput.value = '';
     ruInput.focus();
-    await loadLessonsAdmin(currentLessonLevel);
+    await loadLessonsAdmin(currentLessonLevel, currentLessonBlock);
 }
 
 async function bulkAddLessons() {
@@ -676,7 +686,7 @@ async function bulkAddLessons() {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const rows = [];
     const bad = [];
-    const blockVal = currentLessonLevel === 1 ? currentLessonBlock : 1;
+    const blockVal = currentLessonBlock;
 
     // Автоопределение формата
     const hasDash = lines.some(l => / — /.test(l));
@@ -738,7 +748,7 @@ async function bulkAddLessons() {
     document.getElementById('bulk-input').value = '';
     resultEl.textContent = `✅ Добавлено ${rows.length} фраз!` + (bad.length > 0 ? ` (пропущено ${bad.length} строк с ошибкой)` : '');
     resultEl.style.color = '#27ae60';
-    await loadLessonsAdmin(currentLessonLevel);
+    await loadLessonsAdmin(currentLessonLevel, currentLessonBlock);
 }
 
 async function loadFeedback() {
@@ -782,7 +792,7 @@ async function deleteLesson(id) {
         alert('Ошибка при удалении: ' + error.message);
         return;
     }
-    await loadLessonsAdmin(currentLessonLevel);
+    await loadLessonsAdmin(currentLessonLevel, currentLessonBlock);
 }
 
 async function loadCounters() {
