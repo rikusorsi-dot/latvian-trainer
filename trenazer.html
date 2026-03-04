@@ -561,6 +561,8 @@ function normLv(str) {
         .replace(/ā/g,'a').replace(/ē/g,'e').replace(/ī/g,'i').replace(/ū/g,'u')
         .replace(/ģ/g,'g').replace(/ķ/g,'k').replace(/ļ/g,'l').replace(/ņ/g,'n')
         .replace(/ŗ/g,'r').replace(/š/g,'s').replace(/ž/g,'z').replace(/č/g,'c')
+        // j и y — один звук в латышском (runāju → runayu; йот в кириллице → y)
+        .replace(/j/g,'y')
         .replace(/[^a-z\s]/g,'').replace(/\s+/g,' ').trim();
 }
 
@@ -575,7 +577,7 @@ function wordClose(a, b) {
     return d <= maxD;
 }
 
-function isMatch(transcript, expected, thresh = 0.72) {
+function isMatch(transcript, expected, thresh = 0.65) {
     const t = normLv(transcript);
     const e = normLv(expected);
     if (t === e) return true;
@@ -633,7 +635,7 @@ function renderVoiceUI() {
             break;
         case ST.REPEATING:
             btn.textContent  = '🎤';
-            status.textContent = '🎤 Повторяй вслух:';
+            status.textContent = isMobile ? '🎤 Говори (или тапни 🎤):' : '🎤 Повторяй вслух:';
             repArea.style.display = 'block';
             renderDots();
             skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 8000 : 12000);
@@ -656,6 +658,9 @@ function onMicClick() {
         // Повторный тап = перезапустить запись
         stopListening();
         setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
+    } else if (S === ST.REPEATING) {
+        // Тап во время повторения — перезапустить микрофон если завис
+        if (!speechRunning) startListening();
     }
 }
 
