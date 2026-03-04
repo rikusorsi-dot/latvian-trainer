@@ -226,10 +226,11 @@
         .result-message { font-size: 20px; color: #2c3e50; }
         .result-date { font-size: 14px; color: #aaa; margin-top: 6px; }
 
-        .btn-restart { width:100%; padding:18px; font-size:19px; background:#3498db; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; }
-        .btn-weak    { width:100%; padding:14px; font-size:17px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; display:none; font-weight:bold; }
-        .btn-menu    { width:100%; padding:14px; font-size:17px; background:#ecf0f1; color:#555; border:none; border-radius:14px; cursor:pointer; }
-        .btn-opinion { width:100%; padding:14px; font-size:17px; background:#8e44ad; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
+        .btn-restart    { width:100%; padding:18px; font-size:19px; background:#3498db; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; }
+        .btn-weak       { width:100%; padding:14px; font-size:17px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; display:none; font-weight:bold; }
+        .btn-menu       { width:100%; padding:14px; font-size:17px; background:#ecf0f1; color:#555; border:none; border-radius:14px; cursor:pointer; }
+        .btn-opinion    { width:100%; padding:14px; font-size:17px; background:#8e44ad; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
+        .btn-next-block { width:100%; padding:18px; font-size:19px; background:#27ae60; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
 
         /* ── FEEDBACK SCREEN ── */
         #feedback-screen { display:none; width:100%; max-width:480px; }
@@ -435,10 +436,11 @@
         <div class="result-message" id="result-message"></div>
         <div class="result-date"    id="result-date"></div>
     </div>
-    <button class="btn-restart" onclick="restartTrainer()">🔄 Повторить все фразы</button>
+    <button class="btn-next-block" id="btn-next-block">→ Начать следующий блок</button>
+    <button class="btn-restart" id="btn-restart" onclick="restartTrainer()">🔄 Повторить блок</button>
     <button class="btn-weak" id="btn-weak" onclick="repeatWeak()">⚡ Повторить слабые (<span id="weak-count">0</span>)</button>
     <button class="btn-opinion" id="btn-opinion" onclick="showFeedback()">💬 Твоё мнение</button>
-    <button class="btn-menu" onclick="goToMenu()">← В меню</button>
+    <button class="btn-menu" id="btn-result-menu" onclick="goToMenu()">← В меню</button>
 </div>
 
 <!-- ── FEEDBACK ── -->
@@ -534,10 +536,28 @@ function logout() {
 function setupBlockButtons() {
     for (let i = 1; i <= 4; i++) {
         const btn = document.getElementById('btn-block-' + i);
+        const sub = document.getElementById('sub-block-' + i);
         if (!btn) continue;
-        const prevDone = i === 1 || !!localStorage.getItem('lv_block' + (i-1) + '_done');
-        const hasCards = lessons['b'+i] && lessons['b'+i].length > 0;
-        if (prevDone && hasCards) {
+        const isDone    = !!localStorage.getItem('lv_block' + i + '_done');
+        const repeats   = parseInt(localStorage.getItem('lv_block' + i + '_repeats') || '0');
+        const prevDone  = i === 1 || !!localStorage.getItem('lv_block' + (i-1) + '_done');
+        const hasCards  = lessons['b'+i] && lessons['b'+i].length > 0;
+
+        if (isDone) {
+            const left = 2 - repeats;
+            if (left > 0) {
+                btn.classList.remove('locked');
+                if (sub) sub.textContent = `✅ Пройден · повторить ещё ${left}×`;
+                btn.onclick = () => {
+                    localStorage.setItem('lv_block' + i + '_repeats', repeats + 1);
+                    startTrainer('b' + i);
+                };
+            } else {
+                btn.classList.add('locked');
+                if (sub) sub.textContent = '✅ Пройден';
+                btn.onclick = null;
+            }
+        } else if (prevDone && hasCards) {
             btn.classList.remove('locked');
             btn.onclick = () => startTrainer('b' + i);
         } else {
@@ -995,8 +1015,37 @@ function showResult() {
     const opinionBtn = document.getElementById('btn-opinion');
     opinionBtn.style.display = currentLevel === 'b1' ? 'block' : 'none';
 
+    // Кнопка "Повторить" — только если повторения ещё остались
+    const repeats  = parseInt(localStorage.getItem('lv_block' + blockNum + '_repeats') || '0');
+    const restartBtn = document.getElementById('btn-restart');
+    const left = 2 - repeats;
+    if (left > 0) {
+        restartBtn.style.display = 'block';
+        restartBtn.textContent = `🔄 Повторить блок (ещё ${left}×)`;
+        restartBtn.onclick = () => {
+            localStorage.setItem('lv_block' + blockNum + '_repeats', repeats + 1);
+            startTrainer(currentLevel);
+        };
+    } else {
+        restartBtn.style.display = 'none';
+    }
+
+    // Кнопка "Следующий блок" — если есть и ещё не пройден
+    const nextBtn = document.getElementById('btn-next-block');
+    const nextNum = blockNum + 1;
+    const nextKey = 'b' + nextNum;
+    const nextExists = nextNum <= 4 && lessons[nextKey] && lessons[nextKey].length > 0;
+    const nextDone = !!localStorage.getItem('lv_block' + nextNum + '_done');
+    if (nextExists && !nextDone) {
+        nextBtn.style.display = 'block';
+        nextBtn.textContent = '→ Начать Блок ' + nextNum;
+        nextBtn.onclick = () => startTrainer(nextKey);
+    } else {
+        nextBtn.style.display = 'none';
+    }
+
     // После блока 4 — переход к офферу
-    const menuBtn = document.getElementById('result-screen').querySelector('.btn-menu');
+    const menuBtn = document.getElementById('btn-result-menu');
     if (currentLevel === 'b4') {
         menuBtn.textContent = '🎓 Узнать о полном курсе →';
         menuBtn.onclick = showOfferScreen;
@@ -1013,7 +1062,7 @@ function showOfferScreen() {
 
 function restartOffer() {
     document.getElementById('offer-screen').style.display = 'none';
-    startTrainer('b2');
+    goToMenu();
 }
 
 function restartTrainer() { startTrainer(currentLevel); }
