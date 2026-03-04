@@ -469,6 +469,12 @@
             <button class="level-tab" onclick="switchLessonLevel(3, this)">🔴 Уровень 3</button>
         </div>
 
+        <!-- Блоки (только для Уровня 1) -->
+        <div class="level-tabs" id="block-tabs" style="margin-top:8px">
+            <button class="level-tab active" onclick="switchBlock(1, this)">📦 Блок 1</button>
+            <button class="level-tab" onclick="switchBlock(2, this)">📦 Блок 2</button>
+        </div>
+
         <!-- Одна фраза -->
         <div class="add-phrase-form">
             <input type="text" id="new-ru" placeholder="По-русски: Я говорю...">
@@ -501,13 +507,14 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width:45%">По-русски</th>
-                        <th style="width:45%">По-латышски</th>
-                        <th style="width:10%"></th>
+                        <th style="width:8%">Блок</th>
+                        <th style="width:42%">По-русски</th>
+                        <th style="width:42%">По-латышски</th>
+                        <th style="width:8%"></th>
                     </tr>
                 </thead>
                 <tbody id="lessons-tbody">
-                    <tr><td colspan="3" class="loading-msg">Загрузка...</td></tr>
+                    <tr><td colspan="4" class="loading-msg">Загрузка...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -544,35 +551,49 @@ async function loadData() {
 
 // ── УПРАВЛЕНИЕ УРОКАМИ ───────────────────────────────
 let currentLessonLevel = 1;
+let currentLessonBlock = 1;
 
 function switchLessonLevel(level, btn) {
     currentLessonLevel = level;
+    currentLessonBlock = 1;
     document.querySelectorAll('.level-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    loadLessonsAdmin(level);
+    // Показываем блоки только для уровня 1
+    const blockTabs = document.getElementById('block-tabs');
+    blockTabs.style.display = level === 1 ? 'flex' : 'none';
+    // Сброс активного блока
+    blockTabs.querySelectorAll('.level-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
+    loadLessonsAdmin(level, level === 1 ? 1 : null);
 }
 
-async function loadLessonsAdmin(level) {
+function switchBlock(block, btn) {
+    currentLessonBlock = block;
+    document.getElementById('block-tabs').querySelectorAll('.level-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadLessonsAdmin(currentLessonLevel, block);
+}
+
+async function loadLessonsAdmin(level, block) {
     const tbody = document.getElementById('lessons-tbody');
     const countEl = document.getElementById('phrase-count');
-    tbody.innerHTML = '<tr><td colspan="3" class="loading-msg">Загрузка...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="loading-msg">Загрузка...</td></tr>';
     countEl.textContent = '...';
 
-    const { data, error } = await db
-        .from('lessons')
-        .select('id, ru, lv')
-        .eq('level', level)
-        .order('id');
+    let query = db.from('lessons').select('id, ru, lv, block').eq('level', level).order('id');
+    if (block !== null && block !== undefined) query = query.eq('block', block);
+
+    const { data, error } = await query;
 
     if (error || !data) {
-        tbody.innerHTML = '<tr><td colspan="3" class="no-users">Ошибка загрузки</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="no-users">Ошибка загрузки</td></tr>';
         return;
     }
 
-    countEl.textContent = 'Фраз на уровне ' + level + ': ' + data.length;
+    const label = block ? `Уровень ${level}, Блок ${block}` : `Уровень ${level}`;
+    countEl.textContent = `Фраз (${label}): ${data.length}`;
 
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="no-users">Фраз пока нет — добавьте первую!</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="no-users">Фраз пока нет — добавьте первую!</td></tr>';
         return;
     }
 
@@ -580,6 +601,7 @@ async function loadLessonsAdmin(level) {
     for (const row of data) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td style="text-align:center;font-weight:bold;color:#3498db">${row.block || 1}</td>
             <td>${escHtml(row.ru)}</td>
             <td>${escHtml(row.lv)}</td>
             <td><button class="btn-delete-phrase" onclick="deleteLesson(${row.id})">✕</button></td>
@@ -601,6 +623,7 @@ async function addLesson() {
 
     const { error } = await db.from('lessons').insert({
         level: currentLessonLevel,
+        block: currentLessonLevel === 1 ? currentLessonBlock : 1,
         ru: ru,
         lv: lv
     });
@@ -631,7 +654,7 @@ async function bulkAddLessons() {
         if (parts.length < 2) { bad.push(line); continue; }
         const ru = parts[0].trim();
         const lv = parts[1].trim();
-        if (ru && lv) rows.push({ level: currentLessonLevel, ru, lv });
+        if (ru && lv) rows.push({ level: currentLessonLevel, block: currentLessonLevel === 1 ? currentLessonBlock : 1, ru, lv });
         else bad.push(line);
     }
 
@@ -887,3 +910,4 @@ function escHtml(str) {
 </script>
 </body>
 </html>
+
