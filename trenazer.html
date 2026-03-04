@@ -460,8 +460,9 @@ function initSpeech() {
     }
 
     recognition = new SpeechAPI();
-    // lv-LV на iOS может не поддерживаться — пробуем, при ошибке уберём язык
-    recognition.lang = 'lv-LV';
+    // На мобилке lv-LV не поддерживается — используем язык устройства.
+    // Нормализация (ā→a, š→s) обеспечивает правильное сравнение.
+    recognition.lang = isMobile ? '' : 'lv-LV';
     recognition.continuous     = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 5;
@@ -978,6 +979,7 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
 
 
 
