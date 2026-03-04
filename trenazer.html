@@ -266,9 +266,57 @@
             cursor:pointer; font-weight:bold; margin-bottom:10px; text-decoration:none;
         }
         .btn-sponsor:hover { background: #f39c12; }
+
+        /* ── BROWSER CHECK SCREEN ── */
+        #browser-screen {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: #f5f5f5; flex-direction: column;
+            align-items: center; justify-content: center; padding: 24px;
+        }
+        .browser-card {
+            background: white; border-radius: 20px; padding: 32px 24px;
+            max-width: 400px; width: 100%; text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+        }
+        .browser-icon { font-size: 64px; margin-bottom: 12px; }
+        .browser-card h2 { font-size: 22px; color: #2c3e50; margin-bottom: 12px; }
+        .browser-card p { font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 16px; }
+        .browser-instruction {
+            background: #f8f9fa; border-radius: 12px; padding: 16px;
+            margin-bottom: 16px; font-size: 15px; color: #333; line-height: 1.7;
+        }
+        .browser-instruction b { color: #1a3a6e; }
+        .url-copy-box {
+            background: #eef2ff; border-radius: 10px; padding: 12px 16px;
+            font-size: 13px; color: #3498db; word-break: break-all;
+            margin-bottom: 14px; font-family: monospace;
+        }
+        .btn-copy-url {
+            width: 100%; padding: 14px; font-size: 16px;
+            background: #3498db; color: white; border: none;
+            border-radius: 12px; cursor: pointer; font-weight: bold;
+        }
+        .btn-copy-url:active { background: #2980b9; }
+        .copy-done { color: #27ae60; font-size: 13px; margin-top: 8px; display: none; }
     </style>
 </head>
 <body>
+
+<!-- ── BROWSER CHECK SCREEN ── -->
+<div id="browser-screen">
+    <div class="browser-card">
+        <div class="browser-icon" id="browser-icon">🧭</div>
+        <h2>Открой в правильном браузере</h2>
+        <p>Тренажёр работает через микрофон — это доступно только в определённых браузерах.</p>
+        <div class="browser-instruction" id="browser-instruction">
+            <!-- заполняется JS -->
+        </div>
+        <p style="font-size:14px;color:#888;">Скопируй ссылку и вставь в нужный браузер:</p>
+        <div class="url-copy-box">rikusorsi-dot.github.io/latvian-trainer/</div>
+        <button class="btn-copy-url" onclick="copyAppUrl()">📋 Копировать ссылку</button>
+        <div class="copy-done" id="copy-done">✅ Ссылка скопирована!</div>
+    </div>
+</div>
 
 <!-- ── USER BAR ── -->
 <div id="user-bar">
@@ -401,6 +449,59 @@
 
 <script>
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── BROWSER CHECK ─────────────────────────────────────
+(function checkBrowser() {
+    const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechAPI) return; // всё ок — браузер поддерживает
+
+    const isIpad = /iPad/.test(navigator.userAgent);
+    const isIphone = /iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const screen = document.getElementById('browser-screen');
+    const instr  = document.getElementById('browser-instruction');
+    const icon   = document.getElementById('browser-icon');
+
+    screen.style.display = 'flex';
+
+    if (isIphone || isIpad) {
+        icon.textContent = '🧭';
+        instr.innerHTML = `
+            <b>iPhone / iPad:</b><br>
+            Тренажёр работает только в <b>Safari</b>.<br><br>
+            Нажми кнопку <b>⋯</b> внизу (или сверху)<br>
+            → «<b>Открыть в Safari</b>» или «<b>Open in Safari</b>»
+        `;
+    } else if (isAndroid) {
+        icon.textContent = '🌐';
+        instr.innerHTML = `
+            <b>Android:</b><br>
+            Тренажёр работает только в <b>Chrome</b>.<br><br>
+            Скопируй ссылку ниже и вставь<br>в адресную строку <b>Chrome</b>.
+        `;
+    } else {
+        icon.textContent = '🖥️';
+        instr.innerHTML = `
+            Тренажёр работает в браузерах<br>
+            <b>Chrome</b> или <b>Safari</b>.<br><br>
+            Скопируй ссылку и открой в Chrome.
+        `;
+    }
+})();
+
+function copyAppUrl() {
+    const url = 'https://rikusorsi-dot.github.io/latvian-trainer/';
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url);
+    } else {
+        const t = document.createElement('textarea');
+        t.value = url; document.body.appendChild(t); t.select();
+        document.execCommand('copy'); document.body.removeChild(t);
+    }
+    const done = document.getElementById('copy-done');
+    done.style.display = 'block';
+    setTimeout(() => { done.style.display = 'none'; }, 2500);
+}
 
 // ── SESSION CHECK ─────────────────────────────────────
 const sessionRaw = sessionStorage.getItem('lv_session');
