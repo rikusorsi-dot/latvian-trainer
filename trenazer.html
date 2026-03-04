@@ -180,7 +180,11 @@
         }
 
         #voice-status {
-            font-size: 16px; color: #555; min-height: 22px; margin-bottom: 10px;
+            font-size: 16px; color: #555; min-height: 22px; margin-bottom: 6px;
+        }
+        #debug-transcript {
+            font-size: 11px; color: #bbb; text-align: center;
+            min-height: 15px; margin-bottom: 6px; font-style: italic;
         }
 
         /* Repeat dots */
@@ -338,6 +342,7 @@
     <div id="voice-area">
         <button id="mic-btn" onclick="onMicClick()">🎤</button>
         <div id="voice-status">Нажмите на 🎤 чтобы начать</div>
+        <div id="debug-transcript"></div>
         <div id="repeat-area">
             <div id="repeat-label">Повтори вслух 3 раза:</div>
             <div class="repeat-dots">
@@ -475,6 +480,11 @@ let recognition   = null;
 let speechRunning = false;
 let speechInited  = false;
 
+function setDebug(text) {
+    const el = document.getElementById('debug-transcript');
+    if (el) el.textContent = text;
+}
+
 function initSpeech() {
     if (speechInited) return;
     speechInited = true;
@@ -486,8 +496,6 @@ function initSpeech() {
     }
 
     recognition = new SpeechAPI();
-    // На мобилке lv-LV не поддерживается — используем язык устройства.
-    // Нормализация (ā→a, š→s) обеспечивает правильное сравнение.
     recognition.lang = isMobile ? '' : 'lv-LV';
     recognition.continuous     = false;
     recognition.interimResults = false;
@@ -495,16 +503,19 @@ function initSpeech() {
 
     recognition.onstart = () => {
         speechRunning = true;
+        setDebug('🎤 слушаю...');
     };
 
     recognition.onresult = (e) => {
         speechRunning = false;
         const transcripts = Array.from(e.results[0]).map(r => r.transcript.trim());
+        setDebug('heard: ' + transcripts[0]);
         handleSpeechResult(transcripts);
     };
 
     recognition.onerror = (e) => {
         speechRunning = false;
+        setDebug('err: ' + e.error);
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             document.getElementById('voice-area').style.display = 'none';
             document.getElementById('manual-buttons').style.display = 'flex';
@@ -512,29 +523,43 @@ function initSpeech() {
             return;
         }
         if (e.error === 'language-not-supported') {
-            // Убираем язык и пробуем снова
             recognition.lang = '';
         }
-        // На мобилке не делаем авто-рестарт при ошибке — ждём тапа
-        if (S === ST.LISTENING || S === ST.REPEATING) {
-            setTimeout(() => { if (!speechRunning) startListening(); }, 500);
+        // На iOS без user gesture авто-рестарт не работает — ждём тапа
+        if (!isIOS && (S === ST.LISTENING || S === ST.REPEATING)) {
+            setTimeout(() => { if (!speechRunning) startListening(); }, 600);
         }
     };
 
     recognition.onend = () => {
         speechRunning = false;
         if (S !== ST.LISTENING && S !== ST.REPEATING) return;
-        setTimeout(() => { if (!speechRunning) startListening(); }, isMobile ? 500 : 250);
+        // iOS: каждый start() нужно делать из user gesture — авто-рестарт не работает
+        if (isIOS) {
+            setDebug('тапни 🎤 чтобы говорить');
+            return;
+        }
+        setTimeout(() => { if (!speechRunning) startListening(); }, 300);
     };
 }
-
 
 function startListening() {
     if (!recognition || speechRunning) return;
     try {
         recognition.start();
         speechRunning = true;
-    } catch(e) { speechRunning = false; }
+    } catch(e) {
+        speechRunning = false;
+        setDebug('start err: ' + e.message);
+        // Пересоздать recognition и попробовать снова
+        if (!isIOS) {
+            setTimeout(() => {
+                if (!speechRunning && (S === ST.LISTENING || S === ST.REPEATING)) {
+                    startListening();
+                }
+            }, 1000);
+        }
+    }
 }
 
 function stopListening() {
@@ -619,7 +644,7 @@ function renderVoiceUI() {
             break;
         case ST.LISTENING:
             btn.textContent  = '🎤';
-            status.textContent = '🎤 Говори по-латышски...';
+            status.textContent = (isIOS && !speechRunning) ? 'Тапни 🎤 и говори' : '🎤 Говори по-латышски...';
             repArea.style.display = 'none';
             skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 6000 : 8000);
             break;
@@ -635,7 +660,7 @@ function renderVoiceUI() {
             break;
         case ST.REPEATING:
             btn.textContent  = '🎤';
-            status.textContent = isMobile ? '🎤 Говори (или тапни 🎤):' : '🎤 Повторяй вслух:';
+            status.textContent = isIOS ? 'Тапни 🎤 и скажи:' : '🎤 Повторяй вслух:';
             repArea.style.display = 'block';
             renderDots();
             skipTimer = setTimeout(() => { skipBtn.style.display = 'block'; }, isMobile ? 8000 : 12000);
@@ -655,11 +680,15 @@ function onMicClick() {
         setState(ST.LISTENING);
         startListening();
     } else if (S === ST.LISTENING) {
-        // Повторный тап = перезапустить запись
-        stopListening();
-        setTimeout(() => { setState(ST.LISTENING); startListening(); }, 300);
+        if (speechRunning) {
+            // Уже слушает — перезапустить
+            stopListening();
+            setTimeout(() => { if (!speechRunning) startListening(); }, 300);
+        } else {
+            startListening();
+        }
     } else if (S === ST.REPEATING) {
-        // Тап во время повторения — перезапустить микрофон если завис
+        // На iOS всегда нужен тап; на Android — как фолбэк если завис
         if (!speechRunning) startListening();
     }
 }
@@ -687,7 +716,8 @@ function handleSpeechResult(transcripts) {
                 document.getElementById('card-inner').classList.add('flipped');
                 repeatCount = 0;
                 setState(ST.REPEATING);
-                setTimeout(startListening, 900);
+                // iOS: ждём тапа; Android: авто-старт
+                if (!isIOS) setTimeout(startListening, 900);
             }, 700);
         }
     } else if (S === ST.REPEATING) {
@@ -725,7 +755,7 @@ function nextCard() {
 
     showCard();
     setState(ST.LISTENING);
-    setTimeout(startListening, 800);
+    if (!isIOS) setTimeout(startListening, 800);
 }
 
 function skipCard() {
@@ -889,7 +919,7 @@ function repeatWeak() {
     document.getElementById('card-total').textContent = currentCards.length;
     showCard();
     setState(ST.LISTENING);
-    setTimeout(startListening, 800);
+    if (!isIOS) setTimeout(startListening, 800);
 }
 
 function goToMenu() {
