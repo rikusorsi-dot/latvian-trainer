@@ -703,11 +703,16 @@ function wordClose(a, b) {
     return d <= maxD;
 }
 
-function isMatch(transcript, expected, thresh = 0.65) {
+function isMatch(transcript, expected, thresh = 0.70) {
     const t = normLv(transcript);
     const e = normLv(expected);
+    if (!t || !e) return false;
     if (t === e) return true;
-    if (t.includes(e) || e.includes(t)) return true;
+    // Транскрипт должен быть хотя бы 60% длины ожидаемого — иначе явно неполная фраза
+    if (t.length < e.length * 0.60) return false;
+    // Транскрипт содержит всю ожидаемую фразу = правильно
+    if (t.includes(e)) return true;
+    // НЕ делаем e.includes(t) — это пропускало бы любое одно слово из фразы
     const eW = e.split(' ');
     const tW = t.split(' ');
     const matched = eW.filter(ew => tW.some(tw => wordClose(tw, ew))).length;
