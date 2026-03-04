@@ -195,6 +195,24 @@
         .btn-restart { width:100%; padding:18px; font-size:19px; background:#3498db; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; }
         .btn-weak    { width:100%; padding:14px; font-size:17px; background:#e74c3c; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; display:none; font-weight:bold; }
         .btn-menu    { width:100%; padding:14px; font-size:17px; background:#ecf0f1; color:#555; border:none; border-radius:14px; cursor:pointer; }
+
+        /* ── OFFER SCREEN ── */
+        #offer-screen { display:none; width:100%; max-width:480px; text-align:center; }
+        .offer-card {
+            background: linear-gradient(135deg, #1a3a6e 0%, #9b2335 100%);
+            border-radius: 20px; padding: 32px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25); margin-bottom: 16px; color: white;
+        }
+        .offer-card h2 { font-size: 26px; margin-bottom: 10px; }
+        .offer-card p  { font-size: 16px; opacity: 0.9; margin-bottom: 6px; line-height: 1.6; }
+        .offer-price   { font-size: 42px; font-weight: bold; margin: 14px 0; }
+        .offer-price small { font-size: 18px; opacity: 0.8; }
+        .btn-sponsor {
+            display:block; width:100%; padding:18px; font-size:20px;
+            background: #f1c40f; color: #1a1a1a; border:none; border-radius:14px;
+            cursor:pointer; font-weight:bold; margin-bottom:10px; text-decoration:none;
+        }
+        .btn-sponsor:hover { background: #f39c12; }
     </style>
 </head>
 <body>
@@ -211,18 +229,29 @@
     <div id="streak-box"></div>
     <div id="last-progress"></div>
     <div id="loading-lessons">⏳ Загружаю фразы...</div>
-    <button class="level-btn level-1" id="btn-level-1">
-        🟢 Уровень 1 — Начинающий
-        <small id="sub-level-1">Загрузка...</small>
+    <button class="level-btn level-1" id="btn-block-1">
+        📦 Блок 1 — Основы
+        <small id="sub-block-1">Загрузка...</small>
     </button>
-    <button class="level-btn level-2" id="btn-level-2">
-        🟡 Уровень 2 — Средний
-        <small id="sub-level-2">Скоро появится</small>
+    <button class="level-btn level-2" id="btn-block-2">
+        📦 Блок 2 — Практика
+        <small id="sub-block-2">Загрузка...</small>
     </button>
-    <button class="level-btn level-3" id="btn-level-3">
-        🔴 Уровень 3 — Продвинутый
-        <small id="sub-level-3">Скоро появится</small>
-    </button>
+</div>
+
+<!-- ── OFFER SCREEN (после прохождения Блока 2) ── -->
+<div id="offer-screen">
+    <div class="offer-card">
+        <h2>🏆 Блок 2 пройден!</h2>
+        <p>Вы прошли весь базовый курс.<br>Вы умеете говорить — теперь идём дальше!</p>
+        <div class="offer-price">50€ <small>/месяц</small></div>
+        <p>⭐⭐ Уровень 2 — полный тренажёр<br>Все блоки курса "Латышский с нуля до автоматизма"</p>
+    </div>
+    <a class="btn-sponsor" href="https://www.youtube.com/channel/UC7T-n8O-uOl36vssMZoTQxw/join" target="_blank">
+        🎓 Стать спонсором на YouTube →
+    </a>
+    <button class="btn-restart" onclick="restartOffer()">🔄 Повторить Блок 2</button>
+    <button class="btn-menu" onclick="goToMenu()">← В меню</button>
 </div>
 
 <!-- ── TRAINER ── -->
@@ -306,7 +335,6 @@ if (!sessionRaw) {
 } else {
     currentUser = JSON.parse(sessionRaw);
     document.getElementById('user-name-display').textContent = currentUser.name;
-    setupLevelButtons(currentUser.maxLevel || 1);
     loadLessonsFromSupabase();
     loadStreak();
     loadLastProgress();
@@ -318,17 +346,23 @@ function logout() {
     window.location.href = 'index.html';
 }
 
-function setupLevelButtons(maxLevel) {
-    for (let lvl = 1; lvl <= 3; lvl++) {
-        const btn = document.getElementById('btn-level-' + lvl);
-        const sub = document.getElementById('sub-level-' + lvl);
-        if (lvl <= maxLevel) {
-            btn.classList.remove('locked');
-            btn.onclick = () => startTrainer(lvl);
-        } else {
-            btn.classList.add('locked');
-            btn.onclick = () => alert('🔒 Уровень ' + lvl + ' недоступен на вашем тарифе.\n\nПерейдите на более высокий уровень спонсорства «Латышский язык +16».');
-            sub.textContent = 'Недоступно на вашем тарифе';
+function setupBlockButtons() {
+    const block1Done = !!localStorage.getItem('lv_block1_done');
+    const btn1 = document.getElementById('btn-block-1');
+    const btn2 = document.getElementById('btn-block-2');
+
+    btn1.classList.remove('locked');
+    btn1.onclick = () => startTrainer('b1');
+
+    if (block1Done) {
+        btn2.classList.remove('locked');
+        btn2.onclick = () => startTrainer('b2');
+    } else {
+        btn2.classList.add('locked');
+        btn2.onclick = () => alert('🔒 Сначала пройдите Блок 1!');
+        const sub2 = document.getElementById('sub-block-2');
+        if (sub2 && sub2.textContent !== '...' && !sub2.textContent.includes('фраз')) {
+            sub2.textContent = '🔒 Сначала пройдите Блок 1';
         }
     }
 }
@@ -337,23 +371,21 @@ function setupLevelButtons(maxLevel) {
 let lessons = {};
 
 async function loadLessonsFromSupabase() {
-    const maxLevel = currentUser ? (currentUser.maxLevel || 1) : 1;
     document.getElementById('loading-lessons').style.display = 'block';
     try {
         const { data, error } = await db
-            .from('lessons').select('level, ru, lv').lte('level', maxLevel).order('id');
+            .from('lessons').select('block, ru, lv').eq('level', 1).order('id');
         if (error) throw error;
-        lessons = {};
+        lessons = { b1: [], b2: [] };
         for (const row of data) {
-            if (!lessons[row.level]) lessons[row.level] = [];
-            lessons[row.level].push({ ru: row.ru, lv: row.lv });
+            const key = (row.block === 2) ? 'b2' : 'b1';
+            lessons[key].push({ ru: row.ru, lv: row.lv });
         }
-        for (let lvl = 1; lvl <= 3; lvl++) {
-            const sub = document.getElementById('sub-level-' + lvl);
-            if (sub && lessons[lvl] && lessons[lvl].length > 0) {
-                sub.textContent = lessons[lvl].length + ' фраз';
-            }
-        }
+        const sub1 = document.getElementById('sub-block-1');
+        const sub2 = document.getElementById('sub-block-2');
+        if (sub1) sub1.textContent = lessons.b1.length + ' фраз';
+        if (sub2) sub2.textContent = lessons.b2.length > 0 ? lessons.b2.length + ' фраз' : '🔒 Пока нет фраз';
+        setupBlockButtons();
     } catch(err) {
         console.warn('Ошибка загрузки уроков:', err);
     } finally {
@@ -623,7 +655,7 @@ let weakCards    = [];
 
 function startTrainer(level) {
     if (!lessons[level] || lessons[level].length === 0) {
-        alert('Фразы для этого уровня ещё не добавлены.\nЗайдите в админку и добавьте фразы.');
+        alert('Фразы для этого блока ещё не добавлены.');
         return;
     }
     currentLevel = level;
@@ -681,6 +713,15 @@ function showResult() {
     saveProgressToSupabase(currentLevel, countKnew, countDidnt);
     updateStreak();
 
+    // Фиксируем прохождение блока
+    if (currentLevel === 'b1') {
+        localStorage.setItem('lv_block1_done', '1');
+        setupBlockButtons();
+    } else if (currentLevel === 'b2') {
+        localStorage.setItem('lv_block2_done', '1');
+        // После блока 2 — сначала результат, потом offer
+    }
+
     document.getElementById('trainer-screen').style.display = 'none';
     document.getElementById('result-screen').style.display  = 'block';
     document.getElementById('result-knew').textContent  = countKnew;
@@ -703,6 +744,26 @@ function showResult() {
     } else {
         btnWeak.style.display = 'none';
     }
+
+    // После блока 2 добавляем кнопку перехода к офферу
+    const menuBtn = document.getElementById('result-screen').querySelector('.btn-menu');
+    if (currentLevel === 'b2') {
+        menuBtn.textContent = '🎓 Узнать о полном курсе →';
+        menuBtn.onclick = showOfferScreen;
+    } else {
+        menuBtn.textContent = '← В меню';
+        menuBtn.onclick = goToMenu;
+    }
+}
+
+function showOfferScreen() {
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('offer-screen').style.display  = 'block';
+}
+
+function restartOffer() {
+    document.getElementById('offer-screen').style.display = 'none';
+    startTrainer('b2');
 }
 
 function restartTrainer() { startTrainer(currentLevel); }
@@ -723,9 +784,11 @@ function goToMenu() {
     setState(ST.IDLE);
     document.getElementById('result-screen').style.display  = 'none';
     document.getElementById('trainer-screen').style.display = 'none';
+    document.getElementById('offer-screen').style.display   = 'none';
     document.getElementById('level-screen').style.display   = 'block';
     loadLastProgress();
     loadStreak();
+    setupBlockButtons();
 }
 
 // ── STREAK & PROGRESS ─────────────────────────────────
@@ -792,3 +855,4 @@ function shuffle(arr) {
 </script>
 </body>
 </html>
+
