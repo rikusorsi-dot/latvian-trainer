@@ -232,6 +232,33 @@
         .btn-opinion    { width:100%; padding:14px; font-size:17px; background:#8e44ad; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
         .btn-next-block { width:100%; padding:18px; font-size:19px; background:#27ae60; color:white; border:none; border-radius:14px; cursor:pointer; margin-bottom:10px; font-weight:bold; display:none; }
 
+        /* ── LEVEL 2 GRID ── */
+        .l2-section { margin-top: 20px; width: 100%; max-width: 480px; }
+        .l2-header { text-align:center; font-size:17px; font-weight:bold; color:#9b59b6; margin-bottom:10px; }
+        .l2-grid { display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; }
+        .l2-btn {
+            aspect-ratio:1; border:none; border-radius:12px;
+            background:#9b59b6; color:white; font-weight:bold;
+            cursor:pointer; display:flex; flex-direction:column;
+            align-items:center; justify-content:center; padding:4px;
+            transition:transform 0.1s; font-size:14px;
+        }
+        .l2-btn small { font-size:9px; font-weight:normal; opacity:0.85; margin-top:2px; }
+        .l2-btn.locked { opacity:0.4; cursor:not-allowed; filter:grayscale(60%); }
+        .l2-btn.done { background:#27ae60; }
+        .l2-btn:active:not(.locked) { transform:scale(0.95); }
+        .l2-locked-banner {
+            background:#9b59b6; color:white; border-radius:14px;
+            padding:18px; text-align:center; margin-top:16px;
+        }
+        .l2-locked-banner h3 { font-size:20px; margin-bottom:8px; }
+        .l2-locked-banner p { font-size:14px; opacity:0.9; margin-bottom:12px; }
+        .btn-sponsor-small {
+            display:block; background:white; color:#9b59b6;
+            padding:12px; border-radius:10px; text-decoration:none;
+            font-weight:bold; font-size:15px;
+        }
+
         /* ── FEEDBACK SCREEN ── */
         #feedback-screen { display:none; width:100%; max-width:480px; }
         .feedback-card { background:white; border-radius:18px; padding:28px 22px; box-shadow:0 4px 16px rgba(0,0,0,0.1); }
@@ -347,6 +374,17 @@
         📦 Блок 4
         <small id="sub-block-4">Загрузка...</small>
     </button>
+
+    <!-- Level 2 -->
+    <div class="l2-section" id="level2-section" style="display:none">
+        <div class="l2-header">⭐⭐ Уровень 2</div>
+        <div class="l2-grid" id="l2-grid"></div>
+    </div>
+    <div class="l2-locked-banner" id="level2-locked" style="display:none">
+        <h3>🔒 Уровень 2</h3>
+        <p>30 блоков углублённой практики.<br>Доступен для спонсоров YouTube.</p>
+        <a class="btn-sponsor-small" href="https://www.youtube.com/channel/UC7T-n8O-uOl36vssMZoTQxw/join" target="_blank">Стать спонсором →</a>
+    </div>
 </div>
 
 <!-- ── OFFER SCREEN (после прохождения Блока 2) ── -->
@@ -567,6 +605,46 @@ function setupBlockButtons() {
     }
 }
 
+function setupLevel2() {
+    const hasAccess = currentUser && currentUser.max_level >= 2;
+    document.getElementById('level2-section').style.display = hasAccess ? 'block' : 'none';
+    document.getElementById('level2-locked').style.display  = hasAccess ? 'none'  : 'block';
+    if (!hasAccess) return;
+
+    const grid = document.getElementById('l2-grid');
+    grid.innerHTML = '';
+    for (let i = 1; i <= 30; i++) {
+        const key      = 'L2b' + i;
+        const isDone   = !!localStorage.getItem('lv_L2block' + i + '_done');
+        const repeats  = parseInt(localStorage.getItem('lv_L2block' + i + '_repeats') || '0');
+        const prevDone = i === 1 || !!localStorage.getItem('lv_L2block' + (i-1) + '_done');
+        const hasCards = lessons[key] && lessons[key].length > 0;
+
+        const btn = document.createElement('button');
+        btn.className = 'l2-btn';
+        if (isDone) {
+            btn.classList.add('done');
+            btn.innerHTML = `✅<small>${i}</small>`;
+            if (repeats < 2) {
+                btn.onclick = () => { localStorage.setItem('lv_L2block'+i+'_repeats', repeats+1); startTrainer(key); };
+            } else {
+                btn.classList.add('locked');
+            }
+        } else if (prevDone && hasCards) {
+            btn.innerHTML = `${i}<small>${lessons[key].length}фр</small>`;
+            btn.onclick = () => startTrainer(key);
+        } else if (!hasCards) {
+            btn.innerHTML = `${i}<small>скоро</small>`;
+            btn.classList.add('locked');
+        } else {
+            btn.classList.add('locked');
+            btn.innerHTML = `🔒<small>${i}</small>`;
+            btn.onclick = () => alert('🔒 Сначала пройдите блок ' + (i-1) + '!');
+        }
+        grid.appendChild(btn);
+    }
+}
+
 // ── LESSONS ──────────────────────────────────────────
 let lessons = {};
 
@@ -574,18 +652,25 @@ async function loadLessonsFromSupabase() {
     document.getElementById('loading-lessons').style.display = 'block';
     try {
         const { data, error } = await db
-            .from('lessons').select('block, ru, lv').eq('level', 1).order('id');
+            .from('lessons').select('level, block, ru, lv').order('id');
         if (error) throw error;
         lessons = { b1: [], b2: [], b3: [], b4: [] };
+        for (let i = 1; i <= 30; i++) lessons['L2b'+i] = [];
         for (const row of data) {
-            const key = 'b' + (row.block || 1);
-            if (lessons[key]) lessons[key].push({ ru: row.ru, lv: row.lv });
+            if (row.level === 2) {
+                const key = 'L2b' + (row.block || 1);
+                if (lessons[key]) lessons[key].push({ ru: row.ru, lv: row.lv });
+            } else {
+                const key = 'b' + (row.block || 1);
+                if (lessons[key]) lessons[key].push({ ru: row.ru, lv: row.lv });
+            }
         }
         for (let i = 1; i <= 4; i++) {
             const sub = document.getElementById('sub-block-' + i);
             if (sub) sub.textContent = lessons['b'+i].length > 0 ? lessons['b'+i].length + ' фраз' : 'Скоро';
         }
         setupBlockButtons();
+        setupLevel2();
     } catch(err) {
         console.warn('Ошибка загрузки уроков:', err);
     } finally {
@@ -982,8 +1067,15 @@ function showResult() {
     updateStreak();
 
     // Фиксируем прохождение блока
-    const blockNum = parseInt(currentLevel.replace('b', ''));
-    if (blockNum < 4) {
+    const isL2 = currentLevel.startsWith('L2b');
+    const blockNum = isL2
+        ? parseInt(currentLevel.replace('L2b', ''))
+        : parseInt(currentLevel.replace('b', ''));
+
+    if (isL2) {
+        localStorage.setItem('lv_L2block' + blockNum + '_done', '1');
+        setupLevel2();
+    } else if (blockNum < 4) {
         localStorage.setItem('lv_block' + blockNum + '_done', '1');
         setupBlockButtons();
     }
@@ -1011,31 +1103,34 @@ function showResult() {
         btnWeak.style.display = 'none';
     }
 
-    // Кнопка "Твоё мнение" — только после Блока 1
+    // Кнопка "Твоё мнение" — только после Блока 1 (Level 1)
     const opinionBtn = document.getElementById('btn-opinion');
     opinionBtn.style.display = currentLevel === 'b1' ? 'block' : 'none';
 
-    // Кнопка "Повторить" — только если повторения ещё остались
-    const repeats  = parseInt(localStorage.getItem('lv_block' + blockNum + '_repeats') || '0');
+    // Кнопка "Повторить"
+    const repeatKey  = isL2 ? 'lv_L2block' + blockNum + '_repeats' : 'lv_block' + blockNum + '_repeats';
+    const repeats    = parseInt(localStorage.getItem(repeatKey) || '0');
     const restartBtn = document.getElementById('btn-restart');
     const left = 2 - repeats;
     if (left > 0) {
         restartBtn.style.display = 'block';
         restartBtn.textContent = `🔄 Повторить блок (ещё ${left}×)`;
         restartBtn.onclick = () => {
-            localStorage.setItem('lv_block' + blockNum + '_repeats', repeats + 1);
+            localStorage.setItem(repeatKey, repeats + 1);
             startTrainer(currentLevel);
         };
     } else {
         restartBtn.style.display = 'none';
     }
 
-    // Кнопка "Следующий блок" — если есть и ещё не пройден
-    const nextBtn = document.getElementById('btn-next-block');
-    const nextNum = blockNum + 1;
-    const nextKey = 'b' + nextNum;
-    const nextExists = nextNum <= 4 && lessons[nextKey] && lessons[nextKey].length > 0;
-    const nextDone = !!localStorage.getItem('lv_block' + nextNum + '_done');
+    // Кнопка "Следующий блок"
+    const nextBtn  = document.getElementById('btn-next-block');
+    const nextNum  = blockNum + 1;
+    const nextKey  = isL2 ? 'L2b' + nextNum : 'b' + nextNum;
+    const maxBlock = isL2 ? 30 : 4;
+    const doneKey  = isL2 ? 'lv_L2block' + nextNum + '_done' : 'lv_block' + nextNum + '_done';
+    const nextExists = nextNum <= maxBlock && lessons[nextKey] && lessons[nextKey].length > 0;
+    const nextDone   = !!localStorage.getItem(doneKey);
     if (nextExists && !nextDone) {
         nextBtn.style.display = 'block';
         nextBtn.textContent = '→ Начать Блок ' + nextNum;
@@ -1044,7 +1139,7 @@ function showResult() {
         nextBtn.style.display = 'none';
     }
 
-    // После блока 4 — переход к офферу
+    // Кнопка меню
     const menuBtn = document.getElementById('btn-result-menu');
     if (currentLevel === 'b4') {
         menuBtn.textContent = '🎓 Узнать о полном курсе →';
