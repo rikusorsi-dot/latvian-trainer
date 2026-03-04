@@ -330,13 +330,21 @@
     <div id="streak-box"></div>
     <div id="last-progress"></div>
     <div id="loading-lessons">⏳ Загружаю фразы...</div>
-    <button class="level-btn level-1" id="btn-block-1">
-        📦 Блок 1 — Основы
+    <button class="level-btn" id="btn-block-1" style="background:#27ae60;color:white">
+        📦 Блок 1
         <small id="sub-block-1">Загрузка...</small>
     </button>
-    <button class="level-btn level-2" id="btn-block-2">
-        📦 Блок 2 — Практика
+    <button class="level-btn" id="btn-block-2" style="background:#2980b9;color:white">
+        📦 Блок 2
         <small id="sub-block-2">Загрузка...</small>
+    </button>
+    <button class="level-btn" id="btn-block-3" style="background:#e67e22;color:white">
+        📦 Блок 3
+        <small id="sub-block-3">Загрузка...</small>
+    </button>
+    <button class="level-btn" id="btn-block-4" style="background:#9b59b6;color:white">
+        📦 Блок 4
+        <small id="sub-block-4">Загрузка...</small>
     </button>
 </div>
 
@@ -524,22 +532,17 @@ function logout() {
 }
 
 function setupBlockButtons() {
-    const block1Done = !!localStorage.getItem('lv_block1_done');
-    const btn1 = document.getElementById('btn-block-1');
-    const btn2 = document.getElementById('btn-block-2');
-
-    btn1.classList.remove('locked');
-    btn1.onclick = () => startTrainer('b1');
-
-    if (block1Done) {
-        btn2.classList.remove('locked');
-        btn2.onclick = () => startTrainer('b2');
-    } else {
-        btn2.classList.add('locked');
-        btn2.onclick = () => alert('🔒 Сначала пройдите Блок 1!');
-        const sub2 = document.getElementById('sub-block-2');
-        if (sub2 && sub2.textContent !== '...' && !sub2.textContent.includes('фраз')) {
-            sub2.textContent = '🔒 Сначала пройдите Блок 1';
+    for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById('btn-block-' + i);
+        if (!btn) continue;
+        const prevDone = i === 1 || !!localStorage.getItem('lv_block' + (i-1) + '_done');
+        const hasCards = lessons['b'+i] && lessons['b'+i].length > 0;
+        if (prevDone && hasCards) {
+            btn.classList.remove('locked');
+            btn.onclick = () => startTrainer('b' + i);
+        } else {
+            btn.classList.add('locked');
+            btn.onclick = prevDone ? null : () => alert('🔒 Сначала пройдите Блок ' + (i-1) + '!');
         }
     }
 }
@@ -553,15 +556,15 @@ async function loadLessonsFromSupabase() {
         const { data, error } = await db
             .from('lessons').select('block, ru, lv').eq('level', 1).order('id');
         if (error) throw error;
-        lessons = { b1: [], b2: [] };
+        lessons = { b1: [], b2: [], b3: [], b4: [] };
         for (const row of data) {
-            const key = (row.block === 2) ? 'b2' : 'b1';
-            lessons[key].push({ ru: row.ru, lv: row.lv });
+            const key = 'b' + (row.block || 1);
+            if (lessons[key]) lessons[key].push({ ru: row.ru, lv: row.lv });
         }
-        const sub1 = document.getElementById('sub-block-1');
-        const sub2 = document.getElementById('sub-block-2');
-        if (sub1) sub1.textContent = lessons.b1.length + ' фраз';
-        if (sub2) sub2.textContent = lessons.b2.length > 0 ? lessons.b2.length + ' фраз' : '🔒 Пока нет фраз';
+        for (let i = 1; i <= 4; i++) {
+            const sub = document.getElementById('sub-block-' + i);
+            if (sub) sub.textContent = lessons['b'+i].length > 0 ? lessons['b'+i].length + ' фраз' : 'Скоро';
+        }
         setupBlockButtons();
     } catch(err) {
         console.warn('Ошибка загрузки уроков:', err);
@@ -892,7 +895,7 @@ function startTrainer(level) {
         return;
     }
     currentLevel = level;
-    currentCards = shuffle(lessons[level]);
+    currentCards = [...lessons[level]]; // порядок как в базе (по id)
     currentIndex = 0; countKnew = 0; countDidnt = 0; weakCards = [];
 
     document.getElementById('level-screen').style.display  = 'none';
@@ -959,12 +962,10 @@ function showResult() {
     updateStreak();
 
     // Фиксируем прохождение блока
-    if (currentLevel === 'b1') {
-        localStorage.setItem('lv_block1_done', '1');
+    const blockNum = parseInt(currentLevel.replace('b', ''));
+    if (blockNum < 4) {
+        localStorage.setItem('lv_block' + blockNum + '_done', '1');
         setupBlockButtons();
-    } else if (currentLevel === 'b2') {
-        localStorage.setItem('lv_block2_done', '1');
-        // После блока 2 — сначала результат, потом offer
     }
 
     document.getElementById('trainer-screen').style.display = 'none';
@@ -994,9 +995,9 @@ function showResult() {
     const opinionBtn = document.getElementById('btn-opinion');
     opinionBtn.style.display = currentLevel === 'b1' ? 'block' : 'none';
 
-    // После блока 2 добавляем кнопку перехода к офферу
+    // После блока 4 — переход к офферу
     const menuBtn = document.getElementById('result-screen').querySelector('.btn-menu');
-    if (currentLevel === 'b2') {
+    if (currentLevel === 'b4') {
         menuBtn.textContent = '🎓 Узнать о полном курсе →';
         menuBtn.onclick = showOfferScreen;
     } else {
@@ -1115,7 +1116,7 @@ async function sendFeedback() {
         await db.from('feedback').insert({
             user_id:   currentUser?.userId || null,
             user_name: currentUser?.name   || 'Аноним',
-            block:     currentLevel === 'b1' ? 1 : 2,
+            block:     parseInt(currentLevel.replace('b', '')),
             message:   text
         });
     } catch(e) { console.warn('Feedback error:', e); }
