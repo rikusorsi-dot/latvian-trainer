@@ -755,18 +755,18 @@ function startListening() {
 
         dgSocket.onclose = () => {
             speechRunning = false;
-            if (isIOS) {
-                setDebug('тапни 🎤 чтобы говорить');
-                return;
-            }
-            if (S === ST.LISTENING || S === ST.REPEATING) {
+            // Автоперезапуск для всех устройств если поток ещё активен
+            if (mediaStream && mediaStream.active && (S === ST.LISTENING || S === ST.REPEATING)) {
                 setTimeout(() => { if (!speechRunning) startListening(); }, 300);
+            } else if (isIOS && (!mediaStream || !mediaStream.active)) {
+                setDebug('тапни 🎤 чтобы начать');
             }
         };
         }, 100); // setTimeout для AudioContext
     };
 
-    if (!isIOS && mediaStream && mediaStream.active) {
+    // Переиспользуем поток если уже есть — на iOS тоже (один тап на всю сессию)
+    if (mediaStream && mediaStream.active) {
         doStart(mediaStream);
     } else {
         navigator.mediaDevices.getUserMedia({ audio: true, video: false })
@@ -993,7 +993,7 @@ function nextCard() {
 
     showCard();
     setState(ST.LISTENING);
-    if (!isIOS) setTimeout(startListening, 800);
+    if (mediaStream && mediaStream.active || !isIOS) setTimeout(startListening, 800);
 }
 
 function skipCard() {
@@ -1194,7 +1194,7 @@ function repeatWeak() {
     document.getElementById('card-total').textContent = currentCards.length;
     showCard();
     setState(ST.LISTENING);
-    if (!isIOS) setTimeout(startListening, 800);
+    if (mediaStream && mediaStream.active || !isIOS) setTimeout(startListening, 800);
 }
 
 function goToMenu() {
