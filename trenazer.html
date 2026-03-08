@@ -668,6 +668,7 @@ const hasMediaSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getU
 let mediaStream   = null;
 let audioContext  = null;
 let audioSource   = null;
+let audioGain     = null;
 let processor     = null;
 let dgSocket      = null;
 let speechRunning = false;
@@ -720,8 +721,11 @@ function startListening() {
                 }
                 dgSocket.send(pcm.buffer);
             };
+            audioGain = audioContext.createGain();
+            audioGain.gain.value = 0; // заглушаем выход — только обрабатываем
             audioSource.connect(processor);
-            processor.connect(audioContext.destination);
+            processor.connect(audioGain);
+            audioGain.connect(audioContext.destination);
         };
 
         dgSocket.onmessage = (msg) => {
@@ -780,6 +784,10 @@ function stopListening() {
     if (processor) {
         try { processor.disconnect(); } catch(e) {}
         processor = null;
+    }
+    if (audioGain) {
+        try { audioGain.disconnect(); } catch(e) {}
+        audioGain = null;
     }
     // AudioContext не закрываем — переиспользуем для следующей фразы
     if (dgSocket) {
