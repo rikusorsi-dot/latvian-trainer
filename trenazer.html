@@ -662,11 +662,12 @@ const isIOS    = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStrea
 const isMobile = isIOS || /Android|webOS|BlackBerry/i.test(navigator.userAgent);
 let mobileUnlocked = false; // становится true после первого тапа
 
-// ── SPEECH RECOGNITION (Deepgram) ───────────────────
+// ── SPEECH RECOGNITION (Deepgram PCM) ───────────────────
 const DEEPGRAM_KEY = 'f1bc965d7ee3304925879478a11ed75b8b71b0ce';
-const hasMediaSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+const hasMediaSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 let mediaStream   = null;
-let mediaRecorder = null;
+let audioContext  = null;
+let processor     = null;
 let dgSocket      = null;
 let speechRunning = false;
 let speechInited  = false;
@@ -688,24 +689,35 @@ function initSpeech() {
 function startListening() {
     if (speechRunning || !hasMediaSupport) return;
     speechRunning = true;
-    setDebug('🎤 слушаю...');
+    setDebug('запрос микрофона...');
 
     const doStart = (stream) => {
         mediaStream = stream;
+
+        // Создаём AudioContext и получаем реальный sample rate
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const sampleRate = audioContext.sampleRate;
+
         dgSocket = new WebSocket(
-            'wss://api.deepgram.com/v1/listen?language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700&utterance_end_ms=1000',
+            'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=' + sampleRate + '&language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700',
             ['token', DEEPGRAM_KEY]
         );
 
         dgSocket.onopen = () => {
-            const options = MediaRecorder.isTypeSupported('audio/webm') ? { mimeType: 'audio/webm' } : {};
-            mediaRecorder = new MediaRecorder(stream, options);
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0 && dgSocket && dgSocket.readyState === WebSocket.OPEN) {
-                    dgSocket.send(e.data);
+            setDebug('🎤 слушаю...');
+            const source = audioContext.createMediaStreamSource(stream);
+            processor = audioContext.createScriptProcessor(4096, 1, 1);
+            processor.onaudioprocess = (e) => {
+                if (!dgSocket || dgSocket.readyState !== WebSocket.OPEN) return;
+                const input = e.inputBuffer.getChannelData(0);
+                const pcm = new Int16Array(input.length);
+                for (let i = 0; i < input.length; i++) {
+                    pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
                 }
+                dgSocket.send(pcm.buffer);
             };
-            mediaRecorder.start(250);
+            source.connect(processor);
+            processor.connect(audioContext.destination);
         };
 
         dgSocket.onmessage = (msg) => {
@@ -725,7 +737,7 @@ function startListening() {
 
         dgSocket.onerror = () => {
             speechRunning = false;
-            setDebug('err: connection failed');
+            setDebug('err: соединение не удалось');
             stopListening();
         };
 
@@ -741,11 +753,10 @@ function startListening() {
         };
     };
 
-    // На iOS всегда создаём новый поток — на Android/Desktop переиспользуем
     if (!isIOS && mediaStream && mediaStream.active) {
         doStart(mediaStream);
     } else {
-        navigator.mediaDevices.getUserMedia({ audio: true })
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false })
             .then(doStart)
             .catch((err) => {
                 speechRunning = false;
@@ -757,14 +768,18 @@ function startListening() {
 }
 
 function stopListening() {
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        try { mediaRecorder.stop(); } catch(e) {}
+    if (processor) {
+        try { processor.disconnect(); } catch(e) {}
+        processor = null;
+    }
+    if (audioContext) {
+        try { audioContext.close(); } catch(e) {}
+        audioContext = null;
     }
     if (dgSocket) {
         try { if (dgSocket.readyState === WebSocket.OPEN) dgSocket.close(); } catch(e) {}
+        dgSocket = null;
     }
-    mediaRecorder = null;
-    dgSocket = null;
     speechRunning = false;
 }
 
