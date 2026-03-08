@@ -693,16 +693,20 @@ function startListening() {
     speechRunning = true;
     setDebug('запрос микрофона...');
 
+    // iOS требует resume() синхронно внутри user gesture — делаем здесь
+    if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+
     const doStart = (stream) => {
         mediaStream = stream;
-
-        // AudioContext создаём один раз — переиспользуем между фразами
-        if (!audioContext || audioContext.state === 'closed') {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
         const sampleRate = audioContext.sampleRate;
 
-        audioContext.resume().then(() => {
+        // Небольшая задержка чтобы AudioContext точно запустился
+        setTimeout(() => {
         dgSocket = new WebSocket(
             'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=' + sampleRate + '&language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700',
             ['token', DEEPGRAM_KEY]
@@ -759,7 +763,7 @@ function startListening() {
                 setTimeout(() => { if (!speechRunning) startListening(); }, 300);
             }
         };
-        }); // audioContext.resume().then
+        }, 100); // setTimeout для AudioContext
     };
 
     if (!isIOS && mediaStream && mediaStream.active) {
