@@ -694,10 +694,13 @@ function startListening() {
     const doStart = (stream) => {
         mediaStream = stream;
 
-        // Создаём AudioContext и получаем реальный sample rate
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // AudioContext создаём один раз — переиспользуем между фразами
+        if (!audioContext || audioContext.state === 'closed') {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
         const sampleRate = audioContext.sampleRate;
 
+        audioContext.resume().then(() => {
         dgSocket = new WebSocket(
             'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=' + sampleRate + '&language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700',
             ['token', DEEPGRAM_KEY]
@@ -751,6 +754,7 @@ function startListening() {
                 setTimeout(() => { if (!speechRunning) startListening(); }, 300);
             }
         };
+        }); // audioContext.resume().then
     };
 
     if (!isIOS && mediaStream && mediaStream.active) {
@@ -772,10 +776,7 @@ function stopListening() {
         try { processor.disconnect(); } catch(e) {}
         processor = null;
     }
-    if (audioContext) {
-        try { audioContext.close(); } catch(e) {}
-        audioContext = null;
-    }
+    // AudioContext не закрываем — переиспользуем для следующей фразы
     if (dgSocket) {
         try { if (dgSocket.readyState === WebSocket.OPEN) dgSocket.close(); } catch(e) {}
         dgSocket = null;
