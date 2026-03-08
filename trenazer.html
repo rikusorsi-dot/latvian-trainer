@@ -708,7 +708,7 @@ function startListening() {
         // Небольшая задержка чтобы AudioContext точно запустился
         setTimeout(() => {
         dgSocket = new WebSocket(
-            'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=' + sampleRate + '&language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700',
+            'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=' + sampleRate + '&language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=1500&utterance_end_ms=2000',
             ['token', DEEPGRAM_KEY]
         );
 
@@ -835,7 +835,7 @@ function wordClose(a, b) {
     return d <= maxD;
 }
 
-function isMatch(transcript, expected, thresh = 0.70) {
+function isMatch(transcript, expected, thresh = 0.60) {
     const t = normLv(transcript);
     const e = normLv(expected);
     if (!t || !e) return false;
