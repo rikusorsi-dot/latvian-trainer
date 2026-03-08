@@ -667,6 +667,7 @@ const DEEPGRAM_KEY = 'f1bc965d7ee3304925879478a11ed75b8b71b0ce';
 const hasMediaSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 let mediaStream   = null;
 let audioContext  = null;
+let audioSource   = null;
 let processor     = null;
 let dgSocket      = null;
 let speechRunning = false;
@@ -708,7 +709,7 @@ function startListening() {
 
         dgSocket.onopen = () => {
             setDebug('🎤 слушаю...');
-            const source = audioContext.createMediaStreamSource(stream);
+            audioSource = audioContext.createMediaStreamSource(stream);
             processor = audioContext.createScriptProcessor(4096, 1, 1);
             processor.onaudioprocess = (e) => {
                 if (!dgSocket || dgSocket.readyState !== WebSocket.OPEN) return;
@@ -719,7 +720,7 @@ function startListening() {
                 }
                 dgSocket.send(pcm.buffer);
             };
-            source.connect(processor);
+            audioSource.connect(processor);
             processor.connect(audioContext.destination);
         };
 
@@ -772,6 +773,10 @@ function startListening() {
 }
 
 function stopListening() {
+    if (audioSource) {
+        try { audioSource.disconnect(); } catch(e) {}
+        audioSource = null;
+    }
     if (processor) {
         try { processor.disconnect(); } catch(e) {}
         processor = null;
