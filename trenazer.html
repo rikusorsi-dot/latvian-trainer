@@ -500,41 +500,20 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ── BROWSER CHECK ─────────────────────────────────────
 (function checkBrowser() {
-    const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechAPI) return; // всё ок — браузер поддерживает
+    // Deepgram работает везде через MediaRecorder — проверяем только базовую поддержку
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) return;
 
-    const isIpad = /iPad/.test(navigator.userAgent);
-    const isIphone = /iPhone|iPod/.test(navigator.userAgent);
-    const isAndroid = /Android/i.test(navigator.userAgent);
     const screen = document.getElementById('browser-screen');
     const instr  = document.getElementById('browser-instruction');
     const icon   = document.getElementById('browser-icon');
 
     screen.style.display = 'flex';
-
-    if (isIphone || isIpad) {
-        icon.textContent = '🧭';
-        instr.innerHTML = `
-            <b>iPhone / iPad:</b><br>
-            Тренажёр работает только в <b>Safari</b>.<br><br>
-            Нажми кнопку <b>⋯</b> внизу (или сверху)<br>
-            → «<b>Открыть в Safari</b>» или «<b>Open in Safari</b>»
-        `;
-    } else if (isAndroid) {
-        icon.textContent = '🌐';
-        instr.innerHTML = `
-            <b>Android:</b><br>
-            Тренажёр работает только в <b>Chrome</b>.<br><br>
-            Скопируй ссылку ниже и вставь<br>в адресную строку <b>Chrome</b>.
-        `;
-    } else {
-        icon.textContent = '🖥️';
-        instr.innerHTML = `
-            Тренажёр работает в браузерах<br>
-            <b>Chrome</b> или <b>Safari</b>.<br><br>
-            Скопируй ссылку и открой в Chrome.
-        `;
-    }
+    icon.textContent = '🌐';
+    instr.innerHTML = `
+        Твой браузер устарел.<br><br>
+        Обнови браузер до последней версии<br>
+        или попробуй <b>Chrome</b>.
+    `;
 })();
 
 function copyAppUrl() {
@@ -683,9 +662,12 @@ const isIOS    = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStrea
 const isMobile = isIOS || /Android|webOS|BlackBerry/i.test(navigator.userAgent);
 let mobileUnlocked = false; // становится true после первого тапа
 
-// ── SPEECH RECOGNITION ───────────────────────────────
-const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition   = null;
+// ── SPEECH RECOGNITION (Deepgram) ───────────────────
+const DEEPGRAM_KEY = 'f1bc965d7ee3304925879478a11ed75b8b71b0ce';
+const hasMediaSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+let mediaStream   = null;
+let mediaRecorder = null;
+let dgSocket      = null;
 let speechRunning = false;
 let speechInited  = false;
 
@@ -697,84 +679,93 @@ function setDebug(text) {
 function initSpeech() {
     if (speechInited) return;
     speechInited = true;
-
-    if (!SpeechAPI) {
+    if (!hasMediaSupport) {
         document.getElementById('voice-area').style.display = 'none';
         document.getElementById('manual-buttons').style.display = 'flex';
-        return;
     }
-
-    recognition = new SpeechAPI();
-    recognition.lang = isMobile ? '' : 'lv-LV';
-    recognition.continuous     = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 5;
-
-    recognition.onstart = () => {
-        speechRunning = true;
-        setDebug('🎤 слушаю...');
-    };
-
-    recognition.onresult = (e) => {
-        speechRunning = false;
-        const transcripts = Array.from(e.results[0]).map(r => r.transcript.trim());
-        setDebug('heard: ' + transcripts[0]);
-        handleSpeechResult(transcripts);
-    };
-
-    recognition.onerror = (e) => {
-        speechRunning = false;
-        setDebug('err: ' + e.error);
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            document.getElementById('voice-area').style.display = 'none';
-            document.getElementById('manual-buttons').style.display = 'flex';
-            recognition = null;
-            return;
-        }
-        if (e.error === 'language-not-supported') {
-            recognition.lang = '';
-        }
-        // На iOS без user gesture авто-рестарт не работает — ждём тапа
-        if (!isIOS && (S === ST.LISTENING || S === ST.REPEATING)) {
-            setTimeout(() => { if (!speechRunning) startListening(); }, 600);
-        }
-    };
-
-    recognition.onend = () => {
-        speechRunning = false;
-        if (S !== ST.LISTENING && S !== ST.REPEATING) return;
-        // iOS: каждый start() нужно делать из user gesture — авто-рестарт не работает
-        if (isIOS) {
-            setDebug('тапни 🎤 чтобы говорить');
-            return;
-        }
-        setTimeout(() => { if (!speechRunning) startListening(); }, 300);
-    };
 }
 
 function startListening() {
-    if (!recognition || speechRunning) return;
-    try {
-        recognition.start();
-        speechRunning = true;
-    } catch(e) {
-        speechRunning = false;
-        setDebug('start err: ' + e.message);
-        // Пересоздать recognition и попробовать снова
-        if (!isIOS) {
-            setTimeout(() => {
-                if (!speechRunning && (S === ST.LISTENING || S === ST.REPEATING)) {
-                    startListening();
+    if (speechRunning || !hasMediaSupport) return;
+    speechRunning = true;
+    setDebug('🎤 слушаю...');
+
+    const doStart = (stream) => {
+        mediaStream = stream;
+        dgSocket = new WebSocket(
+            'wss://api.deepgram.com/v1/listen?language=lv&model=nova-2&punctuate=false&interim_results=false&endpointing=700&utterance_end_ms=1000',
+            ['token', DEEPGRAM_KEY]
+        );
+
+        dgSocket.onopen = () => {
+            const options = MediaRecorder.isTypeSupported('audio/webm') ? { mimeType: 'audio/webm' } : {};
+            mediaRecorder = new MediaRecorder(stream, options);
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0 && dgSocket && dgSocket.readyState === WebSocket.OPEN) {
+                    dgSocket.send(e.data);
                 }
-            }, 1000);
-        }
+            };
+            mediaRecorder.start(250);
+        };
+
+        dgSocket.onmessage = (msg) => {
+            try {
+                const data = JSON.parse(msg.data);
+                if (data.type === 'Results' && data.is_final) {
+                    const transcript = (data.channel?.alternatives?.[0]?.transcript || '').trim();
+                    if (transcript) {
+                        setDebug('heard: ' + transcript);
+                        speechRunning = false;
+                        stopListening();
+                        handleSpeechResult([transcript]);
+                    }
+                }
+            } catch(e) {}
+        };
+
+        dgSocket.onerror = () => {
+            speechRunning = false;
+            setDebug('err: connection failed');
+            stopListening();
+        };
+
+        dgSocket.onclose = () => {
+            speechRunning = false;
+            if (isIOS) {
+                setDebug('тапни 🎤 чтобы говорить');
+                return;
+            }
+            if (S === ST.LISTENING || S === ST.REPEATING) {
+                setTimeout(() => { if (!speechRunning) startListening(); }, 300);
+            }
+        };
+    };
+
+    // На iOS всегда создаём новый поток — на Android/Desktop переиспользуем
+    if (!isIOS && mediaStream && mediaStream.active) {
+        doStart(mediaStream);
+    } else {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(doStart)
+            .catch((err) => {
+                speechRunning = false;
+                setDebug('err: ' + err.message);
+                document.getElementById('voice-area').style.display = 'none';
+                document.getElementById('manual-buttons').style.display = 'flex';
+            });
     }
 }
 
 function stopListening() {
-    if (!recognition) return;
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch(e) {}
+    }
+    if (dgSocket) {
+        try { if (dgSocket.readyState === WebSocket.OPEN) dgSocket.close(); } catch(e) {}
+    }
+    mediaRecorder = null;
+    dgSocket = null;
     speechRunning = false;
-    try { recognition.abort(); } catch(e) {}
 }
 
 // ── SPEECH MATCHING ───────────────────────────────────
@@ -1011,7 +1002,7 @@ function startTrainer(level) {
     initSpeech();
 
     // Hide manual buttons if speech available, show if not
-    if (recognition) {
+    if (hasMediaSupport) {
         document.getElementById('manual-buttons').style.display = 'none';
         document.getElementById('voice-area').style.display = 'block';
     }
